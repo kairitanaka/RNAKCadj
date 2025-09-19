@@ -1,0 +1,621 @@
+﻿Gene,Cell,Selected
+CCL1,aDC,0
+EBI3,aDC,0
+LAMP3,aDC,0
+OAS3,aDC,0
+INDO,aDC,0
+BLK,B-cells,1
+CD19,B-cells,1
+FCRL2,B-cells,1
+KIAA0125,B-cells,1
+MS4A1,B-cells,1
+PNOC,B-cells,1
+SPIB,B-cells,1
+TCL1A,B-cells,1
+TNFRSF17,B-cells,1
+BLNK,B-cells,0
+CCR9,B-cells,0
+CR2,B-cells,0
+HLA-DOB,B-cells,0
+HLA-DQA1,B-cells,0
+MEF2C,B-cells,0
+ABCB4,B-cells,0
+BACH2,B-cells,0
+BCL11A,B-cells,0
+CD72,B-cells,0
+COCH,B-cells,0
+DTNB,B-cells,0
+FAM30A,B-cells,0
+GLDC,B-cells,0
+GNG7,B-cells,0
+IGHA1,B-cells,0
+IGHG1,B-cells,0
+IGHM,B-cells,0
+IGKC,B-cells,0
+IGL,B-cells,0
+MICAL3,B-cells,0
+OSBPL10,B-cells,0
+QRSL1,B-cells,0
+SCN3A,B-cells,0
+SLC15A2,B-cells,0
+CD8A,CD8 T cells,1
+CD8B,CD8 T cells,1
+FLT3LG,CD8 T cells,0
+GZMM,CD8 T cells,0
+ABT1,CD8 T cells,0
+AES,CD8 T cells,0
+ARHGAP8,CD8 T cells,0
+C12orf47,CD8 T cells,0
+C19orf6,CD8 T cells,0
+C4orf15,CD8 T cells,0
+CAMLG,CD8 T cells,0
+CDKN2AIP,CD8 T cells,0
+DNAJB1,CD8 T cells,0
+GADD45A,CD8 T cells,0
+KLF9,CD8 T cells,0
+LEPROTL1,CD8 T cells,0
+LIME1,CD8 T cells,0
+MYST3,CD8 T cells,0
+PF4,CD8 T cells,0
+PPP1R2,CD8 T cells,0
+PRR5,CD8 T cells,0
+RBM3,CD8 T cells,0
+SF1,CD8 T cells,0
+SFRS7,CD8 T cells,0
+SLC16A7,CD8 T cells,0
+TBCC,CD8 T cells,0
+THUMPD1,CD8 T cells,0
+TMC6,CD8 T cells,0
+TSC22D3,CD8 T cells,0
+VAMP2,CD8 T cells,0
+ZEB1,CD8 T cells,0
+ZFP36L2,CD8 T cells,0
+ZNF22,CD8 T cells,0
+ZNF609,CD8 T cells,0
+ZNF91,CD8 T cells,0
+CTSW,Cytotoxic cells,1
+GNLY,Cytotoxic cells,1
+GZMA,Cytotoxic cells,1
+GZMB,Cytotoxic cells,1
+GZMH,Cytotoxic cells,1
+KLRB1,Cytotoxic cells,1
+KLRD1,Cytotoxic cells,1
+KLRK1,Cytotoxic cells,1
+NKG7,Cytotoxic cells,1
+PRF1,Cytotoxic cells,1
+KLRF1,Cytotoxic cells,0
+RORA,Cytotoxic cells,0
+RUNX3,Cytotoxic cells,0
+SIGIRR,Cytotoxic cells,0
+APOL3,Cytotoxic cells,0
+DUSP2,Cytotoxic cells,0
+WHDC1,Cytotoxic cells,0
+ZBTB16,Cytotoxic cells,0
+CCL13,DC,1
+CD209,DC,1
+HSD11B1,DC,1
+CCL17,DC,0
+CCL22,DC,0
+NPR1,DC,0
+PPFIBP2,DC,0
+CCR3,Eosinophils,0
+IL5RA,Eosinophils,0
+SMPD3,Eosinophils,0
+THBS1,Eosinophils,0
+ABHD2,Eosinophils,0
+ACACB,Eosinophils,0
+C9orf156,Eosinophils,0
+CAT,Eosinophils,0
+CLC,Eosinophils,0
+CYSLTR2,Eosinophils,0
+EMR1,Eosinophils,0
+EPN2,Eosinophils,0
+GALC,Eosinophils,0
+GPR44,Eosinophils,0
+HES1,Eosinophils,0
+HIST1H1C,Eosinophils,0
+HRH4,Eosinophils,0
+IGSF2,Eosinophils,0
+KBTBD11,Eosinophils,0
+KCNH2,Eosinophils,0
+LRP5L,Eosinophils,0
+MYO15B,Eosinophils,0
+RCOR3,Eosinophils,0
+RNASE2,Eosinophils,0
+RNU2,Eosinophils,0
+RRP12,Eosinophils,0
+SIAH1,Eosinophils,0
+SYNJ1,Eosinophils,0
+TGIF1,Eosinophils,0
+THBS4,Eosinophils,0
+TIPARP,Eosinophils,0
+TKTL1,Eosinophils,0
+CD244,Exhausted CD8,1
+EOMES,Exhausted CD8,1
+LAG3,Exhausted CD8,1
+PTGER4,Exhausted CD8,1
+ENTPD1,Exhausted CD8,0
+CD1A,iDC,0
+CD1B,iDC,0
+CD1C,iDC,0
+CD1E,iDC,0
+CARD9,iDC,0
+CH25H,iDC,0
+CLEC10A,iDC,0
+CSF1R,iDC,0
+F13A1,iDC,0
+MS4A6A,iDC,0
+PPARG,iDC,0
+SYT17,iDC,0
+ABCG2,iDC,0
+BLVRB,iDC,0
+CTNS,iDC,0
+FABP4,iDC,0
+FZD2,iDC,0
+GSTT1,iDC,0
+GUCA1A,iDC,0
+HS3ST2,iDC,0
+LMAN2L,iDC,0
+MMP12,iDC,0
+NM_021941,iDC,0
+NUDT9,iDC,0
+PREP,iDC,0
+RAP1GAP,iDC,0
+SLC26A6,iDC,0
+SLC7A8,iDC,0
+TACSTD2,iDC,0
+TM7SF4,iDC,0
+VASH1,iDC,0
+VEGFC,Lymph vessels,0
+FIGF,Lymph vessels,0
+PDPN,Lymph vessels,0
+CD163,Macrophages,1
+CD68,Macrophages,1
+CD84,Macrophages,1
+MS4A4A,Macrophages,1
+APOE,Macrophages,0
+ATG7,Macrophages,0
+CCL7,Macrophages,0
+CHIT1,Macrophages,0
+CLEC5A,Macrophages,0
+COLEC12,Macrophages,0
+CXCL5,Macrophages,0
+CYBB,Macrophages,0
+FN1,Macrophages,0
+MARCO,Macrophages,0
+MSR1,Macrophages,0
+BCAT1,Macrophages,0
+CHI3L1,Macrophages,0
+COL8A2,Macrophages,0
+CTSK,Macrophages,0
+DNASE2B,Macrophages,0
+EMP1,Macrophages,0
+FDX1,Macrophages,0
+GM2A,Macrophages,0
+GPC4,Macrophages,0
+KAL1,Macrophages,0
+ME1,Macrophages,0
+PCOLCE2,Macrophages,0
+PTGDS,Macrophages,0
+RAI14,Macrophages,0
+SCARB2,Macrophages,0
+SCG5,Macrophages,0
+SGMS1,Macrophages,0
+SULT1C2,Macrophages,0
+CPA3,Mast cells,1
+HDC,Mast cells,1
+MS4A2,Mast cells,1
+TPSAB1,Mast cells,1
+TPSB2,Mast cells,1
+CEACAM8,Mast cells,0
+CMA1,Mast cells,0
+CTSG,Mast cells,0
+KIT,Mast cells,0
+PRG2,Mast cells,0
+TAL1,Mast cells,0
+ABCC4,Mast cells,0
+ADCYAP1,Mast cells,0
+CALB2,Mast cells,0
+ELA2,Mast cells,0
+GATA2,Mast cells,0
+HPGD,Mast cells,0
+LOC339524,Mast cells,0
+LOH11CR2A,Mast cells,0
+MAOB,Mast cells,0
+MLPH,Mast cells,0
+MPO,Mast cells,0
+NM_003293,Mast cells,0
+NR0B1,Mast cells,0
+PGDS,Mast cells,0
+PPM1H,Mast cells,0
+PTGS1,Mast cells,0
+SCG2,Mast cells,0
+SIGLEC6,Mast cells,0
+SLC18A2,Mast cells,0
+SLC24A3,Mast cells,0
+ARG1,MDSC,0
+CEBPB,MDSC,0
+IL10,MDSC,0
+IRF8,MDSC,0
+PTGS2,MDSC,0
+STAT3,MDSC,0
+TGFB1,MDSC,0
+NOS2,MDSC,0
+HIF1A,MDSC,0
+DDIT3,MDSC,0
+XBP1,MDSC,0
+HSPA5,MDSC,0
+CEACAM3,Neutrophils,1
+CSF3R,Neutrophils,1
+FCAR,Neutrophils,1
+FCGR3B,Neutrophils,1
+FPR1,Neutrophils,1
+S100A12,Neutrophils,1
+SIGLEC5,Neutrophils,1
+BST1,Neutrophils,0
+CREB5,Neutrophils,0
+LILRB2,Neutrophils,0
+MME,Neutrophils,0
+TNFRSF10C,Neutrophils,0
+ALPL,Neutrophils,0
+CD93,Neutrophils,0
+CRISPLD2,Neutrophils,0
+CYP4F3,Neutrophils,0
+DYSF,Neutrophils,0
+FLJ11151,Neutrophils,0
+FPRL1,Neutrophils,0
+G0S2,Neutrophils,0
+HIST1H2BC,Neutrophils,0
+HPSE,Neutrophils,0
+IL8RA,Neutrophils,0
+IL8RB,Neutrophils,0
+KCNJ15,Neutrophils,0
+KIAA0329,Neutrophils,0
+MGAM,Neutrophils,0
+PDE4B,Neutrophils,0
+SLC22A4,Neutrophils,0
+SLC25A37,Neutrophils,0
+TNFRSF,Neutrophils,0
+VNN3,Neutrophils,0
+DUSP4,NK CD56bright cells,0
+FOXJ1,NK CD56bright cells,0
+MPPED1,NK CD56bright cells,0
+PLA2G6,NK CD56bright cells,0
+RRAD,NK CD56bright cells,0
+BG255923,NK CD56bright cells,0
+MADD,NK CD56bright cells,0
+6-Mar,NK CD56bright cells,0
+MUC3B,NK CD56bright cells,0
+NIBP,NK CD56bright cells,0
+IL21R,NK CD56dim cells,1
+KIR2DL3,NK CD56dim cells,1
+KIR3DL1,NK CD56dim cells,1
+KIR3DL2,NK CD56dim cells,1
+GTF3C1,NK CD56dim cells,0
+KIR2DS1,NK CD56dim cells,0
+KIR3DL3,NK CD56dim cells,0
+KIR3DS1,NK CD56dim cells,0
+EDG8,NK CD56dim cells,0
+FLJ20699,NK CD56dim cells,0
+KIR2DS2,NK CD56dim cells,0
+KIR2DS5,NK CD56dim cells,0
+SPON2,NK CD56dim cells,0
+TMEPAI,NK CD56dim cells,0
+NCR1,NK cells,1
+XCL1,NK cells,1
+XCL2,NK cells,1
+BCL2,NK cells,0
+FUT5,NK cells,0
+SPN,NK cells,0
+ZNF205,NK cells,0
+ADARB1,NK cells,0
+AF107846,NK cells,0
+AL080130,NK cells,0
+ALDH1B1,NK cells,0
+ARL6IP2,NK cells,0
+CDC5L,NK cells,0
+FGF18,NK cells,0
+FZR1,NK cells,0
+GAGE2,NK cells,0
+LDB3,NK cells,0
+LOC643313,NK cells,0
+LOC730096,NK cells,0
+MAPRE3,NK cells,0
+MCM3AP,NK cells,0
+MRC2,NK cells,0
+NM_014114,NK cells,0
+NM_014274,NK cells,0
+NM_017616,NK cells,0
+PDLIM4,NK cells,0
+PRX,NK cells,0
+PSMD4,NK cells,0
+RP5-886K2.1,NK cells,0
+SLC30A5,NK cells,0
+SMEK1,NK cells,0
+TBXA2R,NK cells,0
+TCTN2,NK cells,0
+TINAGL1,NK cells,0
+ZNF528,NK cells,0
+ZNF747,NK cells,0
+C1R,Normal mucosa,0
+COL3A1,Normal mucosa,0
+ACTG2,Normal mucosa,0
+ADH1B,Normal mucosa,0
+AGR2,Normal mucosa,0
+CALD1,Normal mucosa,0
+CAV1,Normal mucosa,0
+CDH17,Normal mucosa,0
+CEACAM5,Normal mucosa,0
+CRIM1,Normal mucosa,0
+DCN,Normal mucosa,0
+FBLN1,Normal mucosa,0
+FXYD3,Normal mucosa,0
+GNA11,Normal mucosa,0
+GNG12,Normal mucosa,0
+HEPH,Normal mucosa,0
+IGFBP7,Normal mucosa,0
+KRT20,Normal mucosa,0
+LAMA4,Normal mucosa,0
+LGALS4,Normal mucosa,0
+MGP,Normal mucosa,0
+MYH11,Normal mucosa,0
+MYLK,Normal mucosa,0
+NFIB,Normal mucosa,0
+PPAP2B,Normal mucosa,0
+RGS5,Normal mucosa,0
+SPARCL1,Normal mucosa,0
+TAGLN,Normal mucosa,0
+TPM1,Normal mucosa,0
+TSPAN8,Normal mucosa,0
+WASL,Normal mucosa,0
+IL3RA,pDC,0
+ABCB9,Plasma cells,0
+AMPD1,Plasma cells,0
+C11orf80,Plasma cells,0
+DENND5B,Plasma cells,0
+HIST1H2BG,Plasma cells,0
+IGHE,Plasma cells,0
+KCNG2,Plasma cells,0
+LOC100130100,Plasma cells,0
+MAST1,Plasma cells,0
+MROH7,Plasma cells,0
+MZB1,Plasma cells,0
+REN,Plasma cells,0
+SPAG4,Plasma cells,0
+TGM5,Plasma cells,0
+UGT2B17,Plasma cells,0
+F12,SW480 cancer cells,0
+ITGB4,SW480 cancer cells,0
+ASPSCR1,SW480 cancer cells,0
+BAMBI,SW480 cancer cells,0
+BMP4,SW480 cancer cells,0
+BMP7,SW480 cancer cells,0
+CCND1,SW480 cancer cells,0
+DEFA5,SW480 cancer cells,0
+DHRS2,SW480 cancer cells,0
+EEF1A2,SW480 cancer cells,0
+FGF3,SW480 cancer cells,0
+FKBP4,SW480 cancer cells,0
+HOXA9,SW480 cancer cells,0
+IGF2,SW480 cancer cells,0
+INHBB,SW480 cancer cells,0
+JAG2,SW480 cancer cells,0
+KLK6,SW480 cancer cells,0
+KRT13,SW480 cancer cells,0
+KRT5,SW480 cancer cells,0
+LOC89944,SW480 cancer cells,0
+LRFN4,SW480 cancer cells,0
+MFAP2,SW480 cancer cells,0
+NM_024609,SW480 cancer cells,0
+NTSR1,SW480 cancer cells,0
+PCTK1,SW480 cancer cells,0
+RBP1,SW480 cancer cells,0
+RHOD,SW480 cancer cells,0
+RPP25,SW480 cancer cells,0
+S100A2,SW480 cancer cells,0
+S100A3,SW480 cancer cells,0
+SLC1A5,SW480 cancer cells,0
+SLC27A5,SW480 cancer cells,0
+SLC6A8,SW480 cancer cells,0
+STRA6,SW480 cancer cells,0
+TEAD4,SW480 cancer cells,0
+TRIM29,SW480 cancer cells,0
+VSNL1,SW480 cancer cells,0
+ANP32B,T helper cells,0
+ATF2,T helper cells,0
+BATF,T helper cells,0
+DDX50,T helper cells,0
+ICOS,T helper cells,0
+NUP107,T helper cells,0
+ASF1A,T helper cells,0
+C13orf34,T helper cells,0
+FAM111A,T helper cells,0
+FRYL,T helper cells,0
+FUSIP1,T helper cells,0
+GOLGA8A,T helper cells,0
+LRBA,T helper cells,0
+NAP1L4,T helper cells,0
+PHF10,T helper cells,0
+PPP2R5C,T helper cells,0
+RPA1,T helper cells,0
+SEC24C,T helper cells,0
+SLC25A12,T helper cells,0
+UBE2L3,T helper cells,0
+CD3D,T-cells,1
+CD3E,T-cells,1
+CD3G,T-cells,1
+CD6,T-cells,1
+SH2D1A,T-cells,1
+TRAT1,T-cells,1
+CD2,T-cells,0
+BCL11B,T-cells,0
+GIMAP5,T-cells,0
+NCALD,T-cells,0
+PRKCQ,T-cells,0
+SKAP1,T-cells,0
+TRBC1,T-cells,0
+ATM,Tcm,0
+CASP8,Tcm,0
+CYLD,Tcm,0
+DOCK9,Tcm,0
+MAP3K1,Tcm,0
+NEFL,Tcm,0
+NFATC3,Tcm,0
+REPS1,Tcm,0
+TXK,Tcm,0
+USP9Y,Tcm,0
+AQP3,Tcm,0
+ATF7IP,Tcm,0
+CDC14A,Tcm,0
+CEP68,Tcm,0
+CG030,Tcm,0
+CLUAP1,Tcm,0
+CREBZF,Tcm,0
+CYorf15B,Tcm,0
+FOXP1,Tcm,0
+FYB,Tcm,0
+HNRPH1,Tcm,0
+INPP4B,Tcm,0
+KLF12,Tcm,0
+LOC202134,Tcm,0
+MLL,Tcm,0
+PCM1,Tcm,0
+PCNX,Tcm,0
+PDXDC2,Tcm,0
+PHC3,Tcm,0
+POLR2J2,Tcm,0
+PSPC1,Tcm,0
+RP11,Tcm,0
+RPP38,Tcm,0
+SLC7A6,Tcm,0
+SNRPN,Tcm,0
+ST3GAL1,Tcm,0
+STX16,Tcm,0
+TIMM8A,Tcm,0
+TRAF3IP3,Tcm,0
+AKT3,Tem,0
+CCR2,Tem,0
+EWSR1,Tem,0
+LTK,Tem,0
+MEFV,Tem,0
+NFATC4,Tem,0
+C7orf54,Tem,0
+DDX17,Tem,0
+FLI1,Tem,0
+GDPD5,Tem,0
+PRKY,Tem,0
+TBC1D5,Tem,0
+TBCD,Tem,0
+VIL2,Tem,0
+CXCL13,TFH,0
+MAF,TFH,0
+PDCD1,TFH,0
+B3GAT1,TFH,0
+BLR1,TFH,0
+C18orf1,TFH,0
+CDK5R1,TFH,0
+CHGB,TFH,0
+CHI3L2,TFH,0
+HEY1,TFH,0
+HIST1H4K,TFH,0
+ICA1,TFH,0
+KCNK5,TFH,0
+KIAA1324,TFH,0
+MAGEH1,TFH,0
+MKL2,TFH,0
+MYO6,TFH,0
+MYO7A,TFH,0
+PASK,TFH,0
+POMT1,TFH,0
+PTPN13,TFH,0
+PVALB,TFH,0
+SH3TC1,TFH,0
+SIRPG,TFH,0
+SLC7A10,TFH,0
+SMAD1,TFH,0
+ST8SIA1,TFH,0
+STK39,TFH,0
+THADA,TFH,0
+TOX,TFH,0
+TSHR,TFH,0
+ZNF764,TFH,0
+CD160,Tgd,0
+FEZ1,Tgd,0
+TARP,Tgd,0
+C1orf61,Tgd,0
+TRD,Tgd,0
+TRGV9,Tgd,0
+BST2,Th1 cells,0
+CCL4,Th1 cells,0
+CD38,Th1 cells,0
+CD70,Th1 cells,0
+CSF2,Th1 cells,0
+CTLA4,Th1 cells,0
+DPP4,Th1 cells,0
+IFNG,Th1 cells,0
+IL12RB2,Th1 cells,0
+IL22,Th1 cells,0
+LRRN3,Th1 cells,0
+LTA,Th1 cells,0
+APBB2,Th1 cells,0
+APOD,Th1 cells,0
+ATP9A,Th1 cells,0
+BTG3,Th1 cells,0
+CMAH,Th1 cells,0
+DGKI,Th1 cells,0
+DOK5,Th1 cells,0
+DUSP5,Th1 cells,0
+EGFL6,Th1 cells,0
+GGT1,Th1 cells,0
+HBEGF,Th1 cells,0
+LRP8,Th1 cells,0
+SGCB,Th1 cells,0
+SYNGR3,Th1 cells,0
+ZBTB322,Th1 cells,0
+IL17A,Th17 cells,0
+IL17RA,Th17 cells,0
+RORC,Th17 cells,0
+BIRC5,Th2 cells,0
+CXCR6,Th2 cells,0
+GATA3,Th2 cells,0
+IL26,Th2 cells,0
+LAIR2,Th2 cells,0
+SMAD2,Th2 cells,0
+ADCY1,Th2 cells,0
+AHI1,Th2 cells,0
+AI582773,Th2 cells,0
+ANK1,Th2 cells,0
+CDC25C,Th2 cells,0
+CDC7,Th2 cells,0
+CENPF,Th2 cells,0
+DHFR,Th2 cells,0
+EVI5,Th2 cells,0
+GSTA4,Th2 cells,0
+HELLS,Th2 cells,0
+LIMA1,Th2 cells,0
+MB,Th2 cells,0
+MICAL2,Th2 cells,0
+NEIL3,Th2 cells,0
+PHEX,Th2 cells,0
+PTGIS,Th2 cells,0
+SLC39A14,Th2 cells,0
+SNRPD1,Th2 cells,0
+WDHD1,Th2 cells,0
+FOXP3,Treg,1
+CSF2RB,Treg,0
+LILRA4,Treg,0
+PMCH,Treg,0
+CRISP3,Treg,0
+LOC1269,Treg,0
+PLCH2,Treg,0
+RYR1,Treg,0
+TRAV21,Treg,0
+TYR,Treg,0
+IKZF2,Treg,0
+RTKN2,Treg,0
+LAYN,Treg,0
+UTS2,Treg,0
+TRIB1,Treg,0
+F5,Treg,0
+CECAM4,Treg,0
+ENC1,Treg,0
