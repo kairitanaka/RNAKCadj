@@ -1,0 +1,869 @@
+---
+title: "model1 xCell KC-adj fit DEGs"
+author: "Lewis E Tomalin, PhD"
+date: "2025-06-26"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      eval = FALSE,
+                      message = FALSE,
+                      warning = FALSE)
+
+require(tableone)
+require(tidyverse)
+require(variancePartition)
+
+main_file <- 'genes_associated_with_xcell_kc/results/vobj_fit_contrasts.rda'
+
+```
+
+## This script identifies genes associated xCell KC scores
+
+Only MIS, RGP and VGP were used
+
+FCH > 1, FDR < 0.05
+
++ numbers of DEGs associated with xCell KC 
++ volcano plots
++ heatmaps
++ Hallmark and Reactome enrichment
+
+NOTE: Before knitting, you will need to run the chunks named pre_knit. You only need to run these once.
+
+
+
+```{r pre_knit1}
+
+require(tableone)
+require(tidyverse)
+library(variancePartition)
+
+load('data/processed/DGE_final_samples.rda')
+
+dge <- dge_final
+
+#save(dge, file='data/processed/DGE.rda')
+
+read_delim('data/xcell_output/xCell_exprs_for_xcell_xCell_1448071725.txt') %>%
+  rename(cell_id=...1) %>% 
+  column_to_rownames('cell_id') %>%
+  t() -> cell_data
+
+colnames(cell_data)
+
+dge$samples
+
+dge$samples <- bind_cols(dge$samples, cell_data[rownames(dge$samples), 'Keratinocytes', drop=F])
+
+dge$samples$Keratinocytes <- asin(sqrt(dge$samples$Keratinocytes))
+
+dge$samples$Keratinocytes
+
+dge <- calcNormFactors(dge)
+
+design <- model.matrix(~ Keratinocytes + sex + age_centered_impute, 
+                       data = dge$samples)
+
+keep <- filterByExpr(dge, 
+                     design = design)
+
+table(keep)
+
+dge <- dge[keep, , keep.lib.sizes = FALSE]
+
+dge <- calcNormFactors(dge)
+
+
+```
+
+
+```{r echo=T}
+
+# Define formula
+form <- ~ Keratinocytes + sex + age_centered_impute + (1 | patient_id/final_tissue_type_category)
+
+```
+
+
+```{r pre_knit2}
+
+main_file <- 'genes_associated_with_xcell_kc/results/vobj_fit_contrasts.rda'
+
+# Optional: speed up computation
+#register(SnowParam(20)) # or use SnowParam for Windows
+#bpparam()
+
+# For Mac
+library(BiocParallel)
+#bp <- MulticoreParam(8) 
+bp <- SnowParam(20) 
+
+## Need to explore missing a little more...
+
+dge$samples %>% dim()
+
+vobj <- voomWithDreamWeights(dge, 
+                             formula=form, 
+                             data = dge$samples,
+                             plot = TRUE,
+                             save.plot = TRUE,
+                             BPPARAM = bp)
+
+
+fit_contrast <- dream(vobj$E, 
+                      formula=form, 
+                      data=vobj$targets,
+                      BPPARAM = bp)
+
+fit <- variancePartition::eBayes(fit_contrast, trend = F)
+
+save(fit, vobj, dge,
+     file=main_file)
+
+register(SerialParam())
+
+```
+
+Analysis of results 
+
+```{r pre_knit3}
+
+load(main_file)
+
+
+dge$genes -> Annot
+
+head(Annot)
+
+fit$coefficients %>% head()
+
+COEFS <- c('Keratinocytes')
+
+L <- 'Keratinocytes'
+
+lapply(COEFS, function(L){
+  
+  # Compare Mel vs Nevus Low
+  topTable(fit, 
+           coef = L, 
+           adjust.method = "fdr",
+           p.value = 1,
+           number = Inf) %>% 
+    mutate(DIRECTION=sign(logFC),
+           SIG=case_when(sign(logFC)==1 & adj.P.Val <= 0.05 ~ 'Up',
+                         sign(logFC)==-1 & adj.P.Val <= 0.05 ~ 'Down',
+                         TRUE ~ 'NS')) %>%
+    rownames_to_column('GeneID') %>% 
+    mutate(contrast=L) -> temp
+  
+}) -> contr_list
+
+contr_list %>%
+  reduce(full_join) %>%
+  left_join(Annot) %>% 
+  #mutate(contrast = case_when(contrast == 'csd_continous:tissue_type_simpleMIS' ~ 'MISvsNevus',
+  #                            contrast == 'csd_continous:tissue_type_simpleMel' ~ 'MelvsNevus',
+  #                            TRUE ~ contrast)) %>%
+  mutate(contrast=factor(contrast)) -> db_contrasts
+
+db_contrasts %>%
+  group_by(SIG, contrast) %>%
+  summarise(COUNT=n()) %>% 
+  pivot_wider(id_cols = contrast,
+              names_from = SIG,
+              values_from = COUNT) -> N_DEGs
+
+N_DEGs %>% as.data.frame()
+
+db_contrasts %>%
+  filter(SIG == 'Up') %>%
+  arrange(desc(logFC)) %>%
+  group_by(contrast) %>%
+  slice_head(n = 20) %>%
+  mutate(Top10=Symbol) %>%
+  select(SIG, contrast, Symbol, Top10) -> Top10_DEGs_Up
+
+db_contrasts %>%
+  filter(SIG == 'Down') %>%
+  arrange(logFC) %>%
+  group_by(contrast) %>%
+  slice_head(n = 20) %>% 
+  mutate(Top10=Symbol) %>%
+  select(SIG, contrast, Symbol, Top10) -> Top10_DEGs_Down
+
+db_contrasts %>% 
+  full_join(bind_rows(Top10_DEGs_Up, Top10_DEGs_Down)) -> db_contrasts
+
+save(fit, vobj, db_contrasts, N_DEGs, dge,
+     file=main_file)
+
+```
+
+
+```{r pre_knit5}
+
+library(fgsea)
+library(msigdbr)
+library(tidyverse)
+
+load(main_file)
+
+hallmark_sets <- msigdbr(species = "Homo sapiens", collection = "H")
+
+colnames(hallmark_sets)
+
+head(hallmark_sets)  
+
+hallmark_sets$gs_name %>% unique()
+
+hallmark_sets %>% str()
+
+hallmark_sets %>% 
+  filter(gs_name == 'HALLMARK_MYOGENESIS')
+
+# Create a list where each element is a vector of genes for a pathway
+hallmark_list <- split(hallmark_sets$gene_symbol, hallmark_sets$gs_name)
+
+L = 'Keratinocytes'
+
+# For Mac
+library(BiocParallel)
+#bp <- MulticoreParam(8) 
+bp <- SnowParam(20) 
+
+lapply(unique(db_contrasts$contrast), function(L){
+
+db_contrasts %>% 
+  filter(contrast == L,
+         complete.cases(Symbol)) -> dream_results
+
+# Example: using t-statistic
+ranks <- dream_results %>%
+  dplyr::filter(!is.na(t)) %>%
+  dplyr::arrange(desc(t)) %>%
+  dplyr::select(Symbol, t)
+
+# Create a named vector for fgsea
+ranked_genes <- setNames(ranks$t, ranks$Symbol)
+
+fgsea_res <- fgsea(pathways = hallmark_list,
+                   stats = ranked_genes,
+                   minSize = 15,
+                   maxSize = 500,
+                   nproc = 1,
+                   BPPARAM = bp)
+
+# Top pathways
+fgsea_res <- fgsea_res[order(fgsea_res$pval), ]
+
+fgsea_res$contrast <- L
+
+return(fgsea_res)
+
+}) %>% 
+  bind_rows() -> fgsea_res_HK
+
+save(fit, vobj, db_contrasts, N_DEGs, fgsea_res_HK,
+    file=main_file)
+
+register(SerialParam())
+
+# load('results/model_6_xCellKC_adjust/vobj_fit_contrasts.rda')
+# 
+write.csv(fgsea_res_HK %>% 
+          select(-leadingEdge), 
+          file="genes_associated_with_xcell_kc/results/fgsea_hallmark_results.csv", row.names = FALSE)
+
+```
+
+```{r pre_knit6}
+
+load(file=main_file)
+
+reactome_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = "C2") %>%
+  filter(str_detect(gs_name, 'REACTOME')) %>%
+  dplyr::select(gs_name, gene_symbol)
+
+# Create a list where each element is a vector of genes for a pathway
+reactome_list <- split(reactome_sets$gene_symbol, reactome_sets$gs_name)
+
+L <- "Mel_vs_Nevus"
+
+# For Mac
+library(BiocParallel)
+#bp <- MulticoreParam(8) 
+bp <- SnowParam(20) 
+
+lapply(unique(db_contrasts$contrast), function(L){
+  
+  db_contrasts %>% 
+    filter(contrast == L,
+           complete.cases(Symbol)) -> dream_results
+  
+  # Example: using t-statistic
+  ranks <- dream_results %>%
+    dplyr::filter(!is.na(t)) %>%
+    dplyr::arrange(desc(t)) %>%
+    dplyr::select(Symbol, t)
+  
+  # Create a named vector for fgsea
+  ranked_genes <- setNames(ranks$t, ranks$Symbol)
+  
+  fgsea_res <- fgsea(pathways = reactome_list,
+                     stats = ranked_genes,
+                     minSize = 15,
+                     maxSize = 500,
+                     nproc = 8,
+                     BPPARAM = bp)
+  
+  # Top pathways
+  fgsea_res <- fgsea_res[order(fgsea_res$pval), ]
+  
+  fgsea_res$contrast <- L
+  
+  return(fgsea_res)
+  
+}) %>% 
+  bind_rows() -> fgsea_res_REACTOME
+
+
+save(fit, vobj, db_contrasts, N_DEGs, fgsea_res_HK, fgsea_res_REACTOME,
+     file=main_file)
+
+register(SerialParam())
+
+#load('results/model_6_xCellKC_adjust/vobj_fit_contrasts.rda')
+
+write.csv(fgsea_res_REACTOME %>% 
+          select(-leadingEdge), 
+          file="genes_associated_with_xcell_kc/results/fgsea_reactome_results.csv", row.names = FALSE)
+
+
+
+```
+
+
+```{r eval=T, fig.width=5.5, fig.height=4.5}
+
+load(main_file)
+
+plot(vobj$voom.xy, xlab = "Log2 CPM", ylab = "√(standard deviation)", 
+     main = "Mean-variance trend",
+     pch = 16, cex = 0.2, col = "black")
+lines(vobj$voom.line, col = "red", lwd = 2)
+
+```
+
+
+## Volcano plots, genes associated with xCell KC score
+
+```{r echo=T}
+
+form <- ~ Keratinocytes + sex + age_centered_impute + (1 | patient_id/final_tissue_type_category)
+
+```
+
+```{r eval=T, fig.width=9, fig.height=6}
+
+load(main_file)
+
+N_DEGs %>% as.data.frame()
+
+db_contrasts %>%
+  filter(contrast != 'DeltaVGP_MIS_VS_DeltaVGP_RGP') %>%
+  ggplot(aes(x=logFC,
+             y=-log10(adj.P.Val),
+             color=SIG,
+             alpha=SIG))+
+  geom_point(size=0.2)+
+  ggrepel::geom_text_repel(aes(label=Top10), max.overlaps=20, show.legend = F, color='black')+
+  scale_alpha_manual(values=c(Up=1, Down=1, NS=0.1))+
+  scale_color_manual(values=c(Up='red', Down='blue', NS='gray'))+
+  geom_hline(yintercept=-log10(0.05), linetype='dotted')+
+  geom_vline(xintercept=c(-1, 1), linetype='dotted')+
+  facet_wrap(~contrast, nrow=3, scales='free_y')+
+  labs(title=paste0('Gene associated with xCell KC Keratinocyte proportion, FDR < 0.05, Top20'),
+       x='strength of accociation with xCell KC score')+
+  theme_bw() +
+  theme(legend.position = 'none') -> p1
+
+p1
+
+
+
+```
+
+
+## Heatmaps
+
+```{r eval=T, fig.width=12, fig.height=80}
+
+load(main_file)
+
+vobj$genes -> Annot
+
+AnnotVec <- Annot$Symbol
+names(AnnotVec) <- Annot$GeneID
+
+require(pheatmap)
+
+db_contrasts %>%
+  filter(SIG !='NS',
+         complete.cases(Symbol)) %>% 
+  .$GeneID %>% unique() -> AllDEGs
+
+vobj$targets -> PHENO
+
+PHENO %>% 
+  arrange(final_tissue_type_category, Keratinocytes, patient_id) -> PHENO
+
+require(RColorBrewer)
+
+BREAKS <- seq(-2, 2, by=0.1)
+
+pheatmap(vobj$E[AllDEGs, rownames(PHENO)],
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = F, 
+         show_colnames = F,
+         #labels_row = AnnotVec[AllDEGs],
+         annotation_col=PHENO %>% select(final_tissue_type_category, Keratinocytes),
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                               Intermediate='yellow',
+                                                               MIS='orange',
+                                                               RGP='red',
+                                                               VGP='purple')),
+         cluster_cols = F,
+         cluster_rows = T,
+         #cellwidth = 5,
+         #cellheight = 10,
+         main='All genes associated with xCell KC KC proportion',
+         gaps_col = which(!duplicated(PHENO$final_tissue_type_category))[-1]-1,
+         scale = 'row')
+
+
+
+```
+
+## Heatmap by KC proportion
+
+```{r eval=T, fig.width=12, fig.height=80}
+
+load(main_file)
+
+vobj$genes -> Annot
+
+AnnotVec <- Annot$Symbol
+names(AnnotVec) <- Annot$GeneID
+
+require(pheatmap)
+
+db_contrasts %>%
+  filter(SIG !='NS',
+         complete.cases(Symbol)) %>% 
+  .$GeneID %>% unique() -> AllDEGs
+
+vobj$targets -> PHENO
+
+PHENO %>% 
+  arrange(Keratinocytes, patient_id) -> PHENO
+
+require(RColorBrewer)
+
+BREAKS <- seq(-2, 2, by=0.1)
+
+pheatmap(vobj$E[AllDEGs, rownames(PHENO)],
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = F, 
+         show_colnames = F,
+         #labels_row = AnnotVec[AllDEGs],
+         annotation_col=PHENO %>% select(final_tissue_type_category, Keratinocytes),
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                               Intermediate='yellow',
+                                                               MIS='orange',
+                                                               RGP='red',
+                                                               VGP='purple')),
+         cluster_cols = F,
+         cluster_rows = T,
+         #cellwidth = 5,
+         #cellheight = 10,
+         main='All genes associated with xCell KC score',
+         #gaps_col = which(!duplicated(PHENO$final_tissue_type_category))[-1]-1,
+         scale = 'row')
+
+
+
+```
+
+
+## GSEA analysis
+
+```{r eval=T, fig.width=10, fig.height=12}
+
+load(file=main_file)
+
+fgsea_res_HK %>%
+  filter(padj <= 0.1) %>% 
+  .$pathway %>% 
+  unique() -> SIG_PATH
+
+fgsea_res_HK %>% 
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = NES,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'HALLMARK_')) %>%
+  column_to_rownames('pathway') -> mat
+
+fgsea_res_HK %>% 
+  rstatix::add_significance(p.col = 'padj',
+                            cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1),
+                            symbols = c("****", "***", "**", "*", "")) %>%
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = padj.signif,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'HALLMARK_')) %>%
+  column_to_rownames('pathway') -> STARS
+
+BREAKS <- seq(-3, 3, by=0.1)
+
+require(RColorBrewer)
+require(pheatmap)
+
+#dev.off()
+#pdf('results/model_1_melanoma/gsea_stuff/HallmarkHeatmap.pdf', width=8, height=12)
+pheatmap(mat,
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = STARS,
+         cluster_cols = F,
+         cellheight = 12,
+         cellwidth = 25,
+         main='Hallmark Enrichment, FDR < 0.1')
+#dev.off()
+
+```
+
+
+
+
+
+### Reactome Top 5 up and down (per contrast)
+
+
+```{r eval=T, fig.width=10, fig.height=12}
+
+
+load(file=main_file)
+
+## Reactome Heatmap
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(NES) %>%
+  group_by(contrast) %>%
+  slice_head(n=10) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_DOWN
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(desc(NES)) %>%
+  group_by(contrast) %>%
+    slice_head(n=10) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_UP
+
+SIG_PATH <- unique(c(SIG_PATH_UP, SIG_PATH_DOWN))
+
+fgsea_res_REACTOME %>% 
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = NES,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> mat
+
+fgsea_res_REACTOME %>% 
+  rstatix::add_significance(p.col = 'padj',
+                            cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1),
+                            symbols = c("****", "***", "**", "*", "")) %>%
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = padj.signif,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> STARS
+
+BREAKS <- seq(-3, 3, by=0.1)
+
+require(RColorBrewer)
+
+#dev.off()
+#pdf('results/model_1_melanoma/gsea_stuff/ReactomeHeatmap.pdf', width=16, height=10)
+pheatmap(mat,
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = STARS,
+         cluster_cols = F,
+         cellheight = 12,
+         cellwidth = 25,
+         main='Reactome Enrichment, Top 10')
+#dev.off()
+
+```
+
+
+### Reactome all
+
+
+```{r eval=T, fig.width=16, fig.height=40}
+
+load(file=main_file)
+
+## Reactome Heatmap
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(NES) %>%
+  group_by(contrast) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_DOWN
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(desc(NES)) %>%
+  group_by(contrast) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_UP
+
+SIG_PATH <- unique(c(SIG_PATH_UP, SIG_PATH_DOWN))
+
+fgsea_res_REACTOME %>% 
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = NES,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> mat
+
+fgsea_res_REACTOME %>% 
+  rstatix::add_significance(p.col = 'padj',
+                            cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1),
+                            symbols = c("****", "***", "**", "*", "")) %>%
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = padj.signif,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> STARS
+
+BREAKS <- seq(-3, 3, by=0.1)
+
+require(RColorBrewer)
+
+#dev.off()
+#pdf('results/model_1_melanoma/gsea_stuff/ReactomeHeatmap.pdf', width=16, height=10)
+pheatmap(mat,
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = STARS,
+         cluster_cols = F,
+         cellheight = 12,
+         cellwidth = 25,
+         main='Reactome Enrichment')
+#dev.off()
+
+```
+
+
+```{r eval=F, fig.width=13, fig.height=8}
+
+
+load(file=main_file)
+
+# Plot a specific enrichment
+#plotEnrichment(reactome_list[["REACTOME_NONSENSE_MEDIATED_DECAY_NMD"]], ranked_genes)
+
+#fgsea_res_all %>% 
+#  select(-leadingEdge) %>%
+#  filter(pathway=="REACTOME_NONSENSE_MEDIATED_DECAY_NMD") %>%
+#  arrange(NES)
+
+fgsea_res_REACTOME %>% 
+  filter(pathway=="REACTOME_NONSENSE_MEDIATED_DECAY_NMD") %>% .$leadingEdge -> Ledge
+
+Ledge %>%
+  reduce(unique) -> Ledge
+
+require(msigdbr)
+
+reactome_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = "C2") %>%
+  filter(str_detect(gs_name, 'REACTOME')) %>%
+  dplyr::select(gs_name, gene_symbol)
+
+# Create a list where each element is a vector of genes for a pathway
+reactome_list <- split(reactome_sets$gene_symbol, reactome_sets$gs_name)
+
+reactome_list$REACTOME_NONSENSE_MEDIATED_DECAY_NMD -> PTWY
+
+## Volcano plots
+
+db_contrasts %>%
+  filter(contrast != 'DeltaVGP_MIS_VS_DeltaVGP_RGP') %>%
+  #mutate(adj.P.Val=case_when(contrast == 'RGP_vs_MIS' & adj.P.Val < 0.5 ~ 1,
+  #                           TRUE ~ adj.P.Val)) %>%
+  mutate(LeadingEdge=case_when(Symbol %in% Ledge ~ 'LeadingEdge',
+                               Symbol %in% PTWY ~ 'Pathway',
+                               TRUE ~ 'No'),
+         Label=case_when(LeadingEdge == 'LeadingEdge' ~ Symbol,
+                               TRUE ~ NA_character_)) %>%
+  mutate(LeadingEdge = factor(LeadingEdge, levels = c("No", "Pathway", "LeadingEdge"))) %>%
+  arrange(LeadingEdge) %>% 
+  ggplot(aes(x=logFC,
+             y=-log10(adj.P.Val),
+             color=LeadingEdge))+
+  geom_point(aes(size=LeadingEdge))+
+  #ggrepel::geom_text_repel(aes(label=Label), max.overlaps=20, show.legend = F, color='black')+
+  #scale_alpha_manual(values=c(Up=1, Down=1, NS=0.1))+
+  scale_size_manual(values=c(LeadingEdge=1, Pathway=1, No=0.2))+
+  scale_color_manual(values=c(LeadingEdge='forestgreen', Pathway='blue', No='gray'))+
+  #geom_hline(yintercept=-log10(0.05), linetype='dotted')+
+  geom_vline(xintercept=c(-1, 1), linetype='dotted')+
+  facet_wrap(~contrast, scales='free')+
+  labs(title=paste0('NMD genes highlighted'))+
+  theme_bw() 
+
+
+```
+
+
+### Volcano plots from tissue_type_degs with xcell KC-associated genes highlighted
+
+```{r eval=T, fig.width=13, fig.height=12}
+
+
+load(file='genes_associated_with_xcell_kc/results/vobj_fit_contrasts.rda')
+
+db_contrasts %>%
+  filter(SIG == 'Up') %>%
+  arrange(desc(logFC)) %>%
+  select(SIG, contrast, Symbol, Top10) %>%
+  .$Symbol -> xcell_kc_associated_genes
+
+load(file='tissue_type_degs/results/vobj_fit_contrasts.rda')
+
+## Volcano plots
+
+db_contrasts %>%
+  filter(contrast != 'DeltaVGP_MIS_VS_DeltaVGP_RGP') %>%
+  mutate(xcell_kc_associated=case_when(Symbol %in% xcell_kc_associated_genes ~ 'xcell kc assoc',
+                                       TRUE ~ 'not assoc'),
+         Label=case_when(str_detect(Symbol, 'KRT') ~ Symbol,
+                         TRUE ~ NA_character_)) %>%
+  arrange(xcell_kc_associated) %>% 
+  ggplot(aes(x=logFC,
+             y=-log10(adj.P.Val),
+             color=xcell_kc_associated))+
+  geom_point(aes(size=xcell_kc_associated))+
+  ggrepel::geom_text_repel(aes(label=Label), max.overlaps=20, show.legend = F, color='black')+
+  #scale_alpha_manual(values=c(Up=1, Down=1, NS=0.1))+
+  scale_size_manual(values=c(`xcell kc assoc`=1, `not assoc`=0.2))+
+  scale_color_manual(values=c(`xcell kc assoc`='forestgreen', `not assoc`='gray'))+
+  #geom_hline(yintercept=-log10(0.05), linetype='dotted')+
+  geom_vline(xintercept=c(-1, 1), linetype='dotted')+
+  facet_wrap(~contrast, scales='free', nrow=4)+
+  labs(title=paste0('KRT genes highlighted'))+
+  theme_bw() 
+
+
+```
+
+
+### Volcano plots from tissue_type_degs with xcell KC-associated genes highlighted
+
+```{r eval=T, fig.width=13, fig.height=12}
+
+
+load(file='genes_associated_with_xcell_kc/results/vobj_fit_contrasts.rda') # 4,000
+
+db_contrasts %>%
+  filter(SIG == 'Up') %>%
+  arrange(desc(logFC)) %>%
+  select(SIG, contrast, Symbol, Top10) %>%
+  .$Symbol -> xcell_kc_associated_genes
+
+load(file='tissue_type_degs_xcell_kc_adjust/results/vobj_fit_contrasts.rda')
+
+## Volcano plots
+
+db_contrasts %>%
+  filter(contrast != 'DeltaVGP_MIS_VS_DeltaVGP_RGP') %>%
+  mutate(xcell_kc_associated=case_when(Symbol %in% xcell_kc_associated_genes ~ 'xcell kc assoc',
+                                       TRUE ~ 'not assoc'),
+         Label=case_when(str_detect(Symbol, 'KRT') ~ Symbol,
+                         TRUE ~ NA_character_)) %>%
+  arrange(xcell_kc_associated) %>% 
+  ggplot(aes(x=logFC,
+             y=-log10(adj.P.Val),
+             color=xcell_kc_associated))+
+  geom_point(aes(size=xcell_kc_associated))+
+  ggrepel::geom_text_repel(aes(label=Label), max.overlaps=20, show.legend = F, color='black')+
+  #scale_alpha_manual(values=c(Up=1, Down=1, NS=0.1))+
+  scale_size_manual(values=c(`xcell kc assoc`=1, `not assoc`=0.2))+
+  scale_color_manual(values=c(`xcell kc assoc`='forestgreen', `not assoc`='gray'))+
+  #geom_hline(yintercept=-log10(0.05), linetype='dotted')+
+  geom_vline(xintercept=c(-1, 1), linetype='dotted')+
+  facet_wrap(~contrast, scales='free', nrow=4)+
+  labs(title=paste0('KRT genes highlighted'))+
+  theme_bw() 
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,948 @@
+---
+title: "Data Exploration Diego"
+author: "Lewis E Tomalin"
+date: "2025-03-26"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      eval = FALSE,
+                      message = FALSE,
+                      warning = FALSE)
+
+require(tableone)
+require(tidyverse)
+require(pheatmap)
+require(RColorBrewer)
+require(lme4)
+require(emmeans)
+require(rstatix)
+require(ggpubr)
+
+```
+
+requires data: 
+
+'data/processed/DGE_final_samples.rda'  
+'data/raw/UCSF_RNAseq_S99.CiberSort.AbsDeconvol.csv'
+
+creates data:
+
+'data/processed/cibersort_data.rda' 
+
+
+```{r}
+
+require(tidyverse)
+require(tableone)
+
+load('data/processed/DGE_final_samples.rda')
+
+dge_final$samples -> sample_data
+
+sample_data$sample <- rownames(sample_data)
+
+read_csv('data/raw/UCSF_RNAseq_S99.CiberSort.AbsDeconvol.csv') %>%
+  janitor::clean_names() -> cell_data
+
+colnames(cell_data)
+
+str_subset(colnames(cell_data), 
+           'sample|p_value|correlation|rmse|absolute_score_sig_score', 
+           negate=T) -> cell_names
+
+colnames(cell_data) <- case_when(colnames(cell_data) %in% cell_names ~ paste0('cell_', colnames(cell_data)),
+                                 TRUE ~ colnames(cell_data))
+
+cell_data %>%
+  pivot_longer(cols=contains('cell_'),
+               names_to = 'cell_type',
+               values_to = 'abs') %>%
+  group_by(sample) %>%
+  summarise(rowsum=sum(abs)) -> row_sums
+
+cell_data %>%
+  pivot_longer(cols=contains('cell_'),
+               names_to = 'cell_type',
+               values_to = 'abs') %>%
+  full_join(y=row_sums) %>%
+  mutate(prop=abs/rowsum) %>%
+  pivot_wider(id_cols = sample:absolute_score_sig_score,
+              names_from = cell_type,
+              values_from = c(prop, abs)) -> cell_data
+
+intersect(cell_data$sample, sample_data$sample) %>% sort()
+
+symmetric_diff <- function(a, b) {
+  union(setdiff(a, b), setdiff(b, a))
+}
+
+symmetric_diff(cell_data$sample, sample_data$sample) 
+
+sample_data$final_tissue_type_category %>% table()
+
+colnames(cell_data)
+
+cell_sample_data <- inner_join(x=sample_data,
+                               y=cell_data) %>%
+  filter(final_tissue_type_category != 'Regressed-Area') %>%
+  mutate(final_tissue_type_category= factor(final_tissue_type_category,
+                                            levels=c('Nevus', 'Intermediate', 'MIS',
+                                                     'RGP', 'VGP')),
+         significance=case_when(p_value < 0.1 ~ '*',
+                                TRUE ~ 'p > 0.1')) 
+
+
+
+
+save(cell_sample_data, 
+     file='data/processed/cibersort_data.rda')
+  
+
+
+```
+
+Heatmap
+
+```{r eval = TRUE, fig.width=20, fig.height=5}
+
+load(file='data/processed/cibersort_data.rda')
+
+require(pheatmap)
+
+cell_sample_data %>%
+  column_to_rownames('sample') %>%
+  select(!contains('cell_')) -> columun_annots
+
+columun_annots %>% 
+  arrange(final_tissue_type_category, prog_type, p_value, patient_id) -> columun_annots
+
+
+cell_sample_data %>%
+  column_to_rownames('sample') %>%
+  select(contains('prop_cell')) %>%
+  t() -> mat_prop
+
+require(RColorBrewer)
+
+BREAKS <- seq(0, 0.4, by=0.01)
+
+#dev.off()
+#pdf('immune_profiling_results/cell_proportions_no_scaling.pdf', width=20, height=5)
+pheatmap(mat_prop[, rownames(columun_annots)],
+         breaks = BREAKS,
+         color = colorRampPalette(brewer.pal(n = 8, name ="Greens"))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = F,
+         annotation_col = select(columun_annots, final_tissue_type_category, prog_type, p_value),
+         cluster_cols = F,
+         cluster_rows=T, 
+         main='cell proportion, no scaling',
+         cellwidth = 10,
+         cellheight = 10,
+         gaps_col = which(!duplicated(columun_annots$final_tissue_type_category))[-1]-1,
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                      Intermediate='yellow',
+                                                      MIS='orange',
+                                                      RGP='red',
+                                                      VGP='purple'),
+                                  prog_type=c(no_MIS='darkgoldenrod1',
+                                              with_MIS='mistyrose1')),
+         scale = 'none')
+#dev.off()
+
+
+BREAKS <- seq(-2, 2, by=0.1)
+
+#dev.off()
+#pdf('immune_profiling_results/cell_proportions_scaled.pdf', width=20, height=5)
+pheatmap(mat_prop[, rownames(columun_annots)],
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = F,
+         annotation_col = select(columun_annots, final_tissue_type_category, prog_type, p_value),
+         cluster_cols = F,
+         cluster_rows=T, 
+         main='cell proportion, with scaling',
+         cellwidth = 10,
+         cellheight = 10,
+         gaps_col = which(!duplicated(columun_annots$final_tissue_type_category))[-1]-1,
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                      Intermediate='yellow',
+                                                      MIS='orange',
+                                                      RGP='red',
+                                                      VGP='purple'),
+                                  prog_type=c(no_MIS='darkgoldenrod1',
+                                              with_MIS='mistyrose1')),
+         scale = 'row')
+#dev.off()
+
+cell_sample_data %>%
+  column_to_rownames('sample') %>%
+  select(contains('abs_cell')) %>%
+  t() -> mat_abs
+
+BREAKS <- seq(0, 0.4, by=0.01)
+
+#dev.off()
+#pdf('immune_profiling_results/cell_abs_no_scaling.pdf', width=20, height=5)
+pheatmap(mat_abs[, rownames(columun_annots)],
+         breaks = BREAKS,
+         color = colorRampPalette(brewer.pal(n = 8, name ="Greens"))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = F,
+         annotation_col = select(columun_annots, final_tissue_type_category, prog_type, p_value),
+         cluster_cols = F,
+         cluster_rows=T, 
+         main='cell absolute, no scaling',
+         cellwidth = 10,
+         cellheight = 10,
+         gaps_col = which(!duplicated(columun_annots$final_tissue_type_category))[-1]-1,
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                      Intermediate='yellow',
+                                                      MIS='orange',
+                                                      RGP='red',
+                                                      VGP='purple'),
+                                  prog_type=c(no_MIS='darkgoldenrod1',
+                                              with_MIS='mistyrose1')),
+         scale = 'none')
+#dev.off()
+
+
+BREAKS <- seq(-2, 2, by=0.1)
+
+#dev.off()
+#pdf('immune_profiling_results/cell_abs_scaled.pdf', width=20, height=5)
+pheatmap(mat_abs[, rownames(columun_annots)],
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = F,
+         annotation_col = select(columun_annots, final_tissue_type_category, prog_type, p_value),
+         cluster_cols = F,
+         cluster_rows=T, 
+         main='cell absolute, with scaling',
+         cellwidth = 10,
+         cellheight = 10,
+         gaps_col = which(!duplicated(columun_annots$final_tissue_type_category))[-1]-1,
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                      Intermediate='yellow',
+                                                      MIS='orange',
+                                                      RGP='red',
+                                                      VGP='purple'),
+                                  prog_type=c(no_MIS='darkgoldenrod1',
+                                              with_MIS='mistyrose1')),
+         scale = 'row')
+#dev.off()
+
+
+```
+
+Composition plots
+
+```{r eval = TRUE, fig.width=13, fig.height=5}
+
+colnames(cell_sample_data) %>%
+  str_subset('abs_cell') %>%
+  str_remove('abs_cell_') -> cell_types_main
+
+db_celltypes_annot <- data.frame(cell_type=cell_types_main)
+
+db_celltypes_annot %>%
+  mutate(cell_type_grouped=case_when(str_detect(cell_type, 'b_') ~ 'bcells',
+                                     str_detect(cell_type, 't_') ~ 'tcells',
+                                     str_detect(cell_type, 'macro_') ~ 'macrophage',
+                                     str_detect(cell_type, 'nk_') ~ 'nkcells',
+                                     str_detect(cell_type, 'dendritic_') ~ 'DCs',
+                                     str_detect(cell_type, 'mast_') ~ 'mast',
+                                     TRUE ~ cell_type)) -> db_celltypes_annot
+  
+
+cell_sample_data %>%
+  select(!contains('abs_cell')) %>%
+  pivot_longer(cols=contains('prop_cell'),
+               names_to = 'cell_type',
+               values_to = 'proportion') %>%
+  mutate(cell_type = str_remove(cell_type, 'prop_cell_')) %>%
+  full_join(y=db_celltypes_annot) %>% 
+  group_by(sample, cell_type_grouped) %>%
+  summarise(proportion=sum(proportion)) %>%
+  mutate(sample=factor(sample, levels=rownames(columun_annots))) %>%
+  ggplot(aes(x = sample, y = proportion, fill = cell_type_grouped)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(x = "Sample", y = "Proportion", fill = "Cell Type",
+       title='samples are grouped same as heatmaps') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# ggsave(file='immune_profiling_results/sample_composition.tiff',
+#        width = 13, height=5)
+
+
+
+
+```
+
+
+# jitter plots cell types grouped
+
+```{r eval = TRUE, fig.width=11, fig.height=5.84}
+
+cell_sample_data %>%
+  select(!contains('abs_cell')) %>%
+  pivot_longer(cols=contains('prop_cell'),
+               names_to = 'cell_type',
+               values_to = 'proportion') %>%
+  mutate(cell_type = str_remove(cell_type, 'prop_cell_')) %>%
+  full_join(y=db_celltypes_annot) %>% 
+  group_by(sample, cell_type_grouped, final_tissue_type_category, patient_id) %>%
+  summarise(proportion=sum(proportion))-> db_plot
+
+i = 'tcells' 
+
+# for(i in unique(db_plot$cell_type_grouped)){
+#   
+#   print(i)
+#   
+#   pos_jitter <- position_jitter(width = 0.25, height = 0, seed=1987)
+#   
+#   db_plot %>%
+#     filter(cell_type_grouped == i) %>%
+#     ggplot(aes(x = final_tissue_type_category, 
+#                y = proportion,
+#                color = final_tissue_type_category)) +
+#     geom_boxplot(outliers = F)+
+#     #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+#     #geom_point(size = 0.5, position = pos_jitter) +
+#     geom_jitter(width=0.25, size=0.5)+
+#     labs(title = paste0(i, ' proportions'), x=NULL) +
+#     theme_bw()
+#   
+#   ggsave(file=paste0('immune_profiling_results/box_plots/',i,'_noline.tiff'),
+#          width=5.6, height=2.92)
+#   
+#   set.seed(42)  # for reproducibility
+#   
+#   db_plot_jit <- db_plot %>%
+#     filter(cell_type_grouped == i) %>%
+#     mutate(x_jit = as.numeric(final_tissue_type_category) + runif(n(), -0.25, 0.25))
+#   
+#   ggplot(db_plot_jit, aes(x = x_jit, y = proportion, color = final_tissue_type_category)) +
+#     geom_boxplot(outliers = F)+
+#     geom_line(aes(group = patient_id), color = "gray50", alpha=0.5) +
+#     geom_point(size = 0.5) +
+#     scale_x_continuous(breaks = unique(as.numeric(db_plot_jit$final_tissue_type_category)),
+#                        labels = unique(db_plot_jit$final_tissue_type_category)) +
+#     labs(title = i, x = "final_tissue_type_category") +
+#     theme_bw()
+#   
+#   ggsave(file=paste0('immune_profiling_results/box_plots_with_line/',i,'_withline.tiff'),
+#          width=5.6, height=2.92)
+#   
+#   
+# }
+
+db_plot %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = proportion,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('proportions'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  facet_wrap(~cell_type_grouped, scales='free')+
+  theme_bw()
+  
+  #ggsave(file=paste0('immune_profiling_results/box_plots/all_noline.tiff'),
+  #       width=11, height=5.84)
+
+```
+
+
+# jitter plots granular
+
+```{r eval = TRUE, fig.width=11, fig.height=12}
+
+cell_sample_data %>%
+  select(!contains('abs_cell')) %>%
+  pivot_longer(cols=contains('prop_cell'),
+               names_to = 'cell_type',
+               values_to = 'proportion') %>%
+  mutate(cell_type = str_remove(cell_type, 'prop_cell_')) -> db_plot
+
+i = 'b_naive' 
+
+# for(i in unique(db_plot$cell_type)){
+#   
+#   print(i)
+#   
+#   pos_jitter <- position_jitter(width = 0.25, height = 0, seed=1987)
+#   
+#   db_plot %>%
+#     filter(cell_type == i) %>%
+#     ggplot(aes(x = final_tissue_type_category, 
+#                y = proportion,
+#                color = final_tissue_type_category)) +
+#     geom_boxplot(outliers = F)+
+#     #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+#     #geom_point(size = 0.5, position = pos_jitter) +
+#     geom_jitter(width=0.25, size=0.5)+
+#     labs(title = paste0(i, ' proportions'), x=NULL) +
+#     theme_bw()
+#   
+#   ggsave(file=paste0('immune_profiling_results/box_plots_granular_noline/',i,'_noline.tiff'),
+#          width=5.6, height=2.92)
+#   
+#   set.seed(42)  # for reproducibility
+#   
+#   db_plot_jit <- db_plot %>%
+#     filter(cell_type == i) %>%
+#     mutate(x_jit = as.numeric(final_tissue_type_category) + runif(n(), -0.25, 0.25))
+#   
+#   ggplot(db_plot_jit, aes(x = x_jit, y = proportion, color = final_tissue_type_category)) +
+#     geom_boxplot(outliers = F)+
+#     geom_line(aes(group = patient_id), color = "gray50", alpha=0.5) +
+#     geom_point(size = 0.5) +
+#     scale_x_continuous(breaks = unique(as.numeric(db_plot_jit$final_tissue_type_category)),
+#                        labels = unique(db_plot_jit$final_tissue_type_category)) +
+#     labs(title = i, x = "final_tissue_type_category") +
+#     theme_bw()
+#   
+#   ggsave(file=paste0('immune_profiling_results/box_plots_granular_noline/',i,'_withline.tiff'),
+#          width=5.6, height=2.92)
+#   
+#   
+# }
+
+db_plot %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = proportion,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+  #geom_point(size = 0.5, position = pos_jitter) +
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('proportions'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  facet_wrap(~cell_type, scales='free', ncol=4)+
+  theme_bw()
+
+  #ggsave(file=paste0('immune_profiling_results/box_plots_granular_noline/all_noline.tiff'),
+  #       width=11, height=7.44)
+
+
+```
+
+```{r eval = TRUE, fig.width=11, fig.height=12}
+
+cell_sample_data %>%
+  select(!contains('prop_cell')) %>%
+  pivot_longer(cols=contains('abs_cell'),
+               names_to = 'cell_type',
+               values_to = 'absolute') %>%
+  mutate(cell_type = str_remove(cell_type, 'abs_cell_')) -> db_plot
+
+i = 'b_naive' 
+
+# for(i in unique(db_plot$cell_type)){
+#   
+#   print(i)
+#   
+#   pos_jitter <- position_jitter(width = 0.25, height = 0, seed=1987)
+#   
+#   db_plot %>%
+#     filter(cell_type == i) %>%
+#     ggplot(aes(x = final_tissue_type_category, 
+#                y = absolute,
+#                color = final_tissue_type_category)) +
+#     geom_boxplot(outliers = F)+
+#     #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+#     #geom_point(size = 0.5, position = pos_jitter) +
+#     geom_jitter(width=0.25, size=0.5)+
+#     labs(title = paste0(i, ' absolute'), x=NULL) +
+#     theme_bw()
+#   
+#   ggsave(file=paste0('immune_profiling_results/box_plots_granular_noline_abs/',i,'_noline.tiff'),
+#          width=5.6, height=2.92)
+#   
+#   set.seed(42)  # for reproducibility
+#   
+#   db_plot_jit <- db_plot %>%
+#     filter(cell_type == i) %>%
+#     mutate(x_jit = as.numeric(final_tissue_type_category) + runif(n(), -0.25, 0.25))
+#   
+#   ggplot(db_plot_jit, aes(x = x_jit, y = absolute, color = final_tissue_type_category)) +
+#     geom_boxplot(outliers = F)+
+#     geom_line(aes(group = patient_id), color = "gray50", alpha=0.5) +
+#     geom_point(size = 0.5) +
+#     scale_x_continuous(breaks = unique(as.numeric(db_plot_jit$final_tissue_type_category)),
+#                        labels = unique(db_plot_jit$final_tissue_type_category)) +
+#     labs(title = i, x = "final_tissue_type_category") +
+#     theme_bw()
+#   
+#   ggsave(file=paste0('immune_profiling_results/box_plots_granular_noline_abs/',i,'_withline.tiff'),
+#          width=5.6, height=2.92)
+#   
+#   
+# }
+
+
+db_plot %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = absolute,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+  #geom_point(size = 0.5, position = pos_jitter) +
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('absolute'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  facet_wrap(~cell_type, scales='free', ncol=4)+
+  theme_bw()
+  
+  #ggsave(file=paste0('immune_profiling_results/box_plots_granular_noline_abs/all_noline.tiff'),
+  #       width=14, height=7.44)
+
+```
+
+Do stats on cibersort
+
+```{r eval = TRUE, fig.width=11, fig.height=12}
+
+load('data/processed/cibersort_data.rda')
+
+cell_sample_data %>%
+  select(!contains('prop_cell')) %>%
+  pivot_longer(cols=contains('abs_cell'),
+               names_to = 'cell_type',
+               values_to = 'abundance') %>%
+  mutate(cell_type = str_remove(cell_type, 'abs_cell_')) -> db_stats_abs
+
+db_stats_abs %>%
+  mutate(final_tissue_type_category=case_when(final_tissue_type_category=='Intermediate' ~ 'Inter',
+                                     TRUE ~ final_tissue_type_category) %>% 
+           factor(levels=c('Nevus', 'Inter', 'MIS',
+                           'RGP', 'VGP'))) -> db_stats_abs
+
+require(lme4)
+require(emmeans)
+require(rstatix)
+require(ggpubr)
+
+L = 't_cd4_mem_rest'
+
+lapply(unique(db_stats_abs$cell_type), function(L){
+  
+  #print(L)
+  
+  db_stats_abs %>%
+    filter(cell_type == L) %>%
+    mutate(var_trans=qnorm((rank(abundance) - 0.5) / sum(!is.na(abundance)))) -> temp
+  
+  lmer(var_trans ~ final_tissue_type_category + age_centered_impute + 
+         sex + (1|patient_id),
+       data=temp) -> mod1
+  
+  mod1 %>%
+    emmeans(specs='final_tissue_type_category',
+            contr='revpairwise', adjust='none') %>% 
+    .$contrasts %>% as.data.frame() %>%
+    mutate(cell_type=L,
+           group1=str_split(contrast, ' - ', simplify = T)[,1],
+           group2=str_split(contrast, ' - ', simplify = T)[,2]) -> results
+  
+  temp %>% 
+    group_by(final_tissue_type_category) %>%
+    summarise(y.position=max(abundance)) -> max_db
+  
+  results %>%
+    select(contrast, group1, group2) %>%
+    pivot_longer(cols=group1:group2,
+                 values_to = 'final_tissue_type_category') %>%
+    full_join(y=max_db) %>%
+    group_by(contrast) %>%
+    filter(y.position==max(y.position)) %>%
+    select(contrast, y.position)  %>%
+    full_join(y=results) -> results
+    
+return(results)
+  
+  
+}) %>% 
+  bind_rows() -> results_db
+
+results_db %>%
+  adjust_pvalue(method = 'fdr') %>%
+  add_significance(cutpoints = c(0, 0.001, 0.01, 0.05, 1),
+                   symbols = c("***", "**", "*", "ns")) -> results_db
+
+results_db %>% 
+  filter(p.value.adj.signif != 'ns') %>% 
+  group_by(cell_type, y.position) %>%
+  mutate(
+    dup_id = row_number(), 
+    y.position.staggered = y.position + (y.position/2) * (dup_id - 1)
+  ) %>%
+  ungroup() -> results_db_filter
+
+
+db_stats_abs %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = abundance,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+  #geom_point(size = 0.5, position = pos_jitter) +
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('abundance'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  stat_pvalue_manual(data=results_db_filter, 
+                     label = 'p.value.adj.signif',
+                     hide.ns = TRUE,
+                     y.position = 'y.position.staggered',
+                     tip.length = 0)+
+  scale_y_continuous(expand = expansion(mult=0.1))+
+  facet_wrap(~cell_type, scales='free', ncol=4)+
+  theme_bw()
+
+#ggsave(file=paste0('immune_profiling_results/CIBERSORT_Analysis/abundance_stats_all.tiff'),
+#       width=12, height=7.44)
+
+```
+
+
+
+
+```{r eval = TRUE, fig.width=9, fig.height=3}
+
+db_stats_abs %>%
+  filter(str_detect(cell_type, 'macro')) %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = abundance,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+  #geom_point(size = 0.5, position = pos_jitter) +
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('Abs CIBERSORT Macrophages'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  stat_pvalue_manual(data=results_db_filter %>% filter(str_detect(cell_type, 'macro')), 
+                     label = 'p.value.adj.signif',
+                     hide.ns = TRUE,
+                     y.position = 'y.position',
+                     step.increase = 0.1,
+                     tip.length = 0)+
+  scale_y_continuous(expand = expansion(mult=0.1))+
+  facet_wrap(~cell_type, scales='free')+
+  theme_bw()
+
+
+```
+
+
+### STOP code below no longer in use
+
+```{r}
+
+# Mixed effects Dirichlet regression
+# no need to run this, it is kind of overkill
+
+
+cell_sample_data %>%
+  select(!contains('abs_cell')) %>%
+  pivot_longer(cols=contains('prop_cell'),
+               names_to = 'cell_type',
+               values_to = 'proportion') %>%
+  mutate(cell_type = str_remove(cell_type, 'prop_cell_')) -> db_stats_prob
+
+library(DirichletReg)
+# Suppose df is your data.frame:
+# - composition: matrix/data.frame of compositional data (rows = samples, columns = cell types)
+# - group: grouping variable (e.g. case/control)
+# - patient_id: patient identifier
+
+# Convert to DirichletReg format
+comp <- DR_data(df[,c("A", "B", "C")])  # replace with your cell type columns
+
+db_stats_prop %>%
+  mutate(proportion=case_when(proportion==0 ~ proportion+1e-5,
+                              TRUE ~ proportion)) %>%
+  group_by(sample) %>%
+  mutate(
+    prop_sum = sum(proportion),
+    proportion = proportion / prop_sum
+  ) %>%
+  ungroup() %>%
+  select(-prop_sum) %>%
+  pivot_wider(id_cols=c(patient_id, sample, final_tissue_type_category, sex, age_centered_impute),
+              names_from = cell_type,
+              values_from = proportion) -> df
+
+comp <- DR_data(df %>% select(b_naive:last_col()))  
+
+# Standard regression
+fit <- DirichletReg::DirichReg(comp ~ final_tissue_type_category, data = df, 
+                               model='alternative')
+summary(fit)
+
+library(brms)
+library(future)
+
+N=12
+
+plan(multisession, workers = N) # on Windows
+
+
+fit <- brm(
+  bf(cbind(b_naive, b_mem, plasma, t_cd8, t_cd4_naive, t_cd4_mem_rest, t_cd4_mem_act,
+           t_folli_hel, t_reg, t_g_d, nk_rest, nk_act, mono, macro_m0, macro_m1, macro_m2, 
+           dendritic_rest, dendritic_act, mast_rest, mast_act, eosinophils, neutrophils) ~ final_tissue_type_category + (1|patient_id), 
+     family = dirichlet()),
+  data = df,
+  chains = N, cores = N)
+
+summary(fit)
+
+rownames(fixef(fit))
+
+ranef(fit)
+VarCorr(fit)
+
+save(fit, file='immune_profiling_results/me_dirichlet_fit.rda')
+
+load('immune_profiling_results/me_dirichlet_fit.rda')
+
+
+library(brms)
+# The names may look like 'final_tissue_typeVGP:t_cd4_mem_act'
+hypothesis(fit, "mutcd4memact_final_tissue_typeIntermediate - mutcd4memact_final_tissue_typeMIS = 0")
+
+hypothesis(fit, "mutcd4memact_final_tissue_typeVGP = 0") %>% .$hypothesis
+
+rownames(fixef(fit)) %>%
+  str_subset('_Intercept|sex|age_centered_impute', negate = T) %>%
+  paste0(' = 0') -> contr_list
+
+rownames(fixef(fit)) %>%
+  str_subset('_Intercept', negate = T) %>%
+  paste0(' = 0') -> contr_list
+
+str_split(contr_list, '_', simplify = T)[,1] %>% str_remove_all('mu')
+paste0(str_extract(contr_list, 'Inter|MIS|RGP|VGP'), ' - Nevus')
+
+contr_nevus <- data.frame(contrast_brm=contr_list) %>%
+  mutate(celltype=str_split(contrast_brm, '_', simplify = T)[,1] %>% str_remove_all('mu'),
+         contrast=paste0(str_extract(contrast_brm, 'Inter|MIS|RGP|VGP'), ' - Nevus'))
+
+
+expand.grid(celltype=str_remove_all(unique(db_stats_prop$cell_type), pattern = '_'),
+            final_tissue_type_category=c('Inter', 'MIS', 'RGP', 'VGP')) %>%
+  mutate(coef=paste0(celltype, '_final_tissue_type', final_tissue_type_category)) %>%
+  filter(celltype != 'bnaive') -> coef_db
+
+L = 'macrom1'
+
+lapply(unique(coef_db$celltype), function(L){
+  
+  coef_db %>%
+    filter(celltype==L) -> temp
+  
+  combn(temp$coef, 2, FUN = function(x) paste0('mu',x[1], " - mu", x[2], " = 0")) -> contrasts_brm
+  
+  combn(temp$coef, 2, FUN = function(x) paste0(x[1], " - ", x[2])) %>%
+    str_remove_all(as.character(L)) %>%
+    str_remove_all('_final_tissue_type') -> contrasts
+  
+  db_contr <- data.frame(contrast_brm=contrasts_brm,
+                         celltype=L,
+                         contrast=contrasts)
+  
+  return(db_contr)
+  
+  }) %>% bind_rows() -> contrast_list
+
+names(contrast_list)
+names(contr_nevus)
+
+contrast_list <- rbind(contrast_list, contr_nevus)
+
+L="mubnaive_final_tissue_typeInter - mubnaive_final_tissue_typeMIS = 0"
+
+L=1
+
+lapply(1:nrow(contrast_list), function(L){
+  
+  contrast_list[L,] -> temp
+  
+  hypothesis(fit, temp$contrast_brm) %>% 
+    .$hypothesis %>%
+    mutate(celltype=temp$celltype,
+           contrast=temp$contrast) -> res
+  
+  return(res)
+  
+}) %>% bind_rows() -> brm_contrasts
+
+brm_contrasts %>%
+  select(-Hypothesis) %>%
+  filter(Star=='*') %>%
+  arrange(celltype)
+
+brm_contrasts %>%
+  select(-Hypothesis) %>%
+  filter(Star=='*') %>%
+  mutate(group1=str_split(contrast, ' - ', simplify = T)[,1],
+         group2=str_split(contrast, ' - ', simplify = T)[,2],
+         contrast_rev=paste0(group2, ' - ', group1)) %>%
+  pivot_longer(cols=c(contrast, contrast_rev),
+               values_to = 'contrast') %>%
+  filter(contrast %in% results_db$contrast) %>%
+  select(-name) %>%
+  mutate(group1=str_split(contrast, ' - ', simplify = T)[,1],
+         group2=str_split(contrast, ' - ', simplify = T)[,2]) -> db_results_brm
+
+db_results_brm %>%
+  filter(celltype=='tcd4memact') %>% as.data.frame()
+  
+  db_results_brm$contrast %>% unique() %>% sort()
+  results_db$contrast %>% unique() %>% sort()
+  
+  setdiff(db_results_brm$contrast, results_db$contrast) %>% sort()
+
+results_db %>%
+  mutate(celltype=str_remove_all(cell_type, '_')) %>%
+  select(contrast, y.position, cell_type, celltype) %>%
+  inner_join(y=db_results_brm) %>%
+  group_by(cell_type, y.position) %>%
+  mutate(
+    dup_id = row_number(), 
+    y.position.staggered = y.position + (y.position/2) * (dup_id - 1)
+  ) %>%
+  ungroup() -> results_db_filter_brm
+
+
+results_db_filter_brm %>%
+  filter(cell_type=='t_cd4_mem_act') %>% as.data.frame()
+
+
+db_stats_prop %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = proportion,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+  #geom_point(size = 0.5, position = pos_jitter) +
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('compositional, dirichlet regression'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  stat_pvalue_manual(data=results_db_filter_brm, 
+                     label = 'Star',
+                     hide.ns = TRUE,
+                     y.position = 'y.position.staggered',
+                     tip.length = 0)+
+  scale_y_continuous(expand = expansion(mult=0.1))+
+  facet_wrap(~cell_type, scales='free')+
+  theme_bw()
+
+ggsave(file=paste0('immune_profiling_results/box_plots_granular_noline/compositional_dirichlet_all_noline.tiff'),
+       width=12, height=7.44)
+
+  pos_jitter <- position_jitter(width = 0.25, height = 0, seed=1987)
+
+db_stats_prop %>%
+  filter(cell_type == 't_cd8') %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = proportion,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+  #geom_point(size = 0.5, position = pos_jitter) +
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('CD8 T-cells, Compositional'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  stat_pvalue_manual(data=results_db_filter %>%
+                       filter(cell_type == 't_cd8'), 
+                     label = 'Star',
+                     hide.ns = TRUE,
+                     y.position = 'y.position',
+                     step.increase = 0.1,
+                     tip.length = 0)+
+  scale_y_continuous(expand = expansion(mult=0.1))+
+  facet_wrap(~cell_type, scales='free')+
+  theme_bw()
+
+
+db_stats_prop %>%
+  filter(str_detect(cell_type, 'macro')) %>%
+  ggplot(aes(x = final_tissue_type_category, 
+             y = proportion,
+             color = final_tissue_type_category)) +
+  geom_boxplot(outliers = F)+
+  #geom_line(aes(group = patient_id), color = 'black', position = pos_jitter) +
+  #geom_point(size = 0.5, position = pos_jitter) +
+  geom_jitter(width=0.25, size=0.5)+
+  labs(title = paste0('Macrophages'), x=NULL) +
+  scale_color_manual(values=c(Nevus='green',
+                              Inter='yellow',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  stat_pvalue_manual(data=results_db_filter_brm %>%
+                       filter(str_detect(cell_type, 'macro')), 
+                     label = 'Star',
+                     hide.ns = TRUE,
+                     y.position = 'y.position',
+                     step.increase = 0.1,
+                     tip.length = 0)+
+  scale_y_continuous(expand = expansion(mult=0.1))+
+  facet_wrap(~cell_type, scales='free')+
+  theme_bw()
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
