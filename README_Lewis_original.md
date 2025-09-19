@@ -6,6 +6,8 @@ These Lewis original files are the untouched scripts that were used before edite
 
 This folder contains all the scripts for the analysis of the melanoma RNA-seq data. If running from scratch, I recommend running in the following order.
 
+*THEY ONLY INCLUDE INFORMATION TO RUN IT. THE ORIGINAL RDAs ARE NOT INCLUDED ONLY THE SCRIPTS, HTMLs, AND RAW DATA SUFFICIENT TO RUN*
+
 ## Analysis Workflow
 
 ### DEG analysis comparing tissue types [need to be ran in order]
