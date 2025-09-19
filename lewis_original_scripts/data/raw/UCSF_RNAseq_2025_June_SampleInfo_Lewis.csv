@@ -1,0 +1,102 @@
+Sample,RNAseq Library ID,SampleID,Tissue type,Revised Tissue Type,Final Tissue Type Category,PatientID,Classification used by Lewis,Comment
+CCR_008_Melanocytoma,RLP-184,CCR-008-Melanocytoma,Melanocytoma,Melanocytoma,Intermediate,CCR-008,Melanocytoma (Lewis Mel),Block ID: T01-10896. Site: back.
+CCR_008_Mel,RLP-186,CCR-008-Mel,Mel,VGP,VGP,CCR-008,,Block ID: 02-7356. Site: abdomen.
+CCR_008_Nevus,RLP-185,CCR-008-Nevus,Nevus,Nevus,Nevus,CCR-008,,Block ID: T01-10896. Site: back.
+CCR_011_Mel,RLP-107,CCR-011-Mel,Mel,VGP,VGP,CCR-011,,
+CCR_011_MIS,RLP-171,CCR-011-MIS,MIS,RGP,RGP,CCR-011,,
+CCR_011_Nevus,RLP-109,CCR-011-Nevus,Nevus,Nevus,Nevus,CCR-011,,
+CCR_021_Mel,RLP-173,CCR-021-Mel,Mel,VGP,VGP,CCR-021,,
+CCR_021_Nevus,RLP-174,CCR-021-Nevus,Nevus,Nevus,Nevus,CCR-021,,
+CCR_141_Mel,RLP-115,CCR-141-Mel,Mel,RGP,RGP,CCR-141,RGP (Lewis Mel),
+CCR_141_MIS,RLP-179,CCR-141-MIS,MIS,RGP,RGP,CCR-141,RGP (Lewis MIS),
+CCR_141_Nevus,RLP-180,CCR-141-Nevus,Nevus,Intermediate,Intermediate,CCR-141,Intermediate (Lewis Nevus),
+CCR_142_Mel,RLP-175,CCR-142-Mel,Mel,VGP,VGP,CCR-142,,
+CCR_142_MIS,RLP-176,CCR-142-MIS,MIS,RGP,RGP,CCR-142,,
+CCR_142_Nevus,RLP-177,CCR-142-Nevus,Nevus,Nevus,Nevus,CCR-142,,
+CCR_302_Mel,RLP-118,CCR-302-Mel,Mel,VGP,VGP,CCR-302,,
+CCR_302_MIS,RLP-120,CCR-302-MIS,MIS,RGP,RGP,CCR-302,,
+CCR_302_Nevus,RLP-119,CCR-302-Nevus,Nevus,Nevus,Nevus,CCR-302,,
+JJS_19_Mel,RLP-258,JJS-19-Mel,Mel,VGP,VGP,JJS-19,,
+JJS_19_Nevus,RLP-261,JJS-19-Nevus,Nevus,Exclude sample,Exclude sample,JJS-19,,Exclude this sample. Mix of nevus and melanoma.
+ME_15_MIS,RLP-190,ME-15-MIS,MIS,RGP,RGP,ME-15,,
+ME_15_Nevus,RLP-129,ME-15-Nevus,Nevus,Nevus,Nevus,ME-15,,
+ME_29_Mel,RLP-126,ME-29-Mel,Mel,VGP,VGP,ME-29,,
+ME_37_Mel,RLP-124,ME-37-Mel,Mel,VGP,VGP,ME-37,,
+ME_37_Nevus,RLP-125,ME-37-Nevus,Nevus,Intermediate,Intermediate,ME-37,,
+ME_40_Mel,RLP-262,ME-40-Mel,Mel,RGP,RGP,ME-40,,
+ME_40_Nevus,RLP-263,ME-40-Nevus,Nevus,VGP,VGP,ME-40,VGP (Lewis Nevus),
+ME_43_Mel,RLP-259,ME-43-Mel,Mel,VGP,VGP,ME-43,,
+ME_43_Nevus,RLP-260,ME-43-Nevus,Nevoid Mel,Nevoid mel,VGP,ME-43,Nevoid Mel (Lewis Nevus and MIS),Tissue type relabel as nevoid melanoma.
+ME_47_Mel1,RLP-130,ME-47-Mel1,Mel,VGP,VGP,ME-47,,
+ME_47_Mel2,RLP-131,ME-47-Mel2,Mel,VGP,VGP,ME-47,,PCA outlier (David Kuo)
+ME_47_Nevus,RLP-132,ME-47-Nevus,Nevus,Nevus-like melanoma,VGP,ME-47,Nevus-like melanoma (Lewis Nevus),Nevus-like melanoma
+ME_48_Mel,RLP-195,ME-48-Mel,Mel,VGP,VGP,ME-48,,
+ME_48_Nevus,RLP-196,ME-48-Nevus,Nevus,Nevus,Nevus,ME-48,,
+ME_49_Mel,RLP-135,ME-49-Mel,Mel,VGP,VGP,ME-49,,
+ME_49_Nevus,RLP-136,ME-49-Nevus,Nevus,Nevus,Nevus,ME-49,,
+ME_50_Mel,RLP-199,ME-50-Mel,Mel,VGP,VGP,ME-50,,
+ME_50_Nevus,RLP-200,ME-50-Nevus,Nevus,RGP,RGP,ME-50,RGP (Lewis Nevus),
+ME_51_Mel,RLP-264,ME-51-Mel,Mel,VGP,VGP,ME-51,,
+ME_51_Nevus,RLP-265,ME-51-Nevus,Nevus,Nevus,Nevus,ME-51,,
+ME_52_Mel,RLP-139,ME-52-Mel,Mel,VGP,VGP,ME-52,,
+ME_52_MIS,RLP-140,ME-52-MIS,MIS,RGP,RGP,ME-52,,
+ME_52_Nevus,RLP-141,ME-52-Nevus,Nevus,Nevus,Nevus,ME-52,,
+ME_53_Mel,RLP-142,ME-53-Mel,Mel,VGP,VGP,ME-53,,
+ME_53_MIS,RLP-143,ME-53-MIS,MIS,MIS,MIS,ME-53,,
+ME_53_Nevus,RLP-144,ME-53-Nevus,Nevus,Nevus,Nevus,ME-53,,
+ME_54_Mel,RLP-207,ME-54-Mel,Mel,VGP,VGP,ME-54,,
+ME_54_Nevus,RLP-208,ME-54-Nevus,Nevus,Nevus-like melanoma,VGP,ME-54,Nevus-like melanoma (Lewis Nevus),
+ME_55_MIS,RLP-147,ME-55-MIS,MIS,RGP,RGP,ME-55,,
+ME_55_Nevus1,RLP-148,ME-55-Nevus,Nevus,Nevus,Nevus,ME-55,,
+ME_55_Nevus2,RLP-211,ME-55-PRAME-positive_Nevus,PRAME-positive-Nevus,PRAME-positive-Nevus,Intermediate,ME-55,PRAME-positive-Nevus (Lewis Nevus),
+ME_56_Mel,RLP-212,ME-56-Mel,Mel,VGP,VGP,ME-56,,
+ME_56_MIS,RLP-213,ME-56-MIS,MIS,MIS,MIS,ME-56,,
+ME_56_Nevus,RLP-214,ME-56-Nevus,Nevus,RGP,RGP,ME-56,RGP (Lewis Nevus),
+ME_57_Mel,RLP-215,ME-57-Mel,Mel,VGP,VGP,ME-57,,PCA outlier (David Kuo)
+ME_57_MIS,RLP-216,ME-57-MIS,MIS,RGP,RGP,ME-57,,
+ME_57_Nevus1,RLP-217,ME-57-Nevus,Nevus+evolvingMel,Nevus+evolvingMel,RGP,ME-57,Nevus+evolvingMel (Lewis Nevus and MIS),Tissue type relabel as nevus + evolving melanoma.
+ME_57_Nevus2,RLP-218,ME-57-Regressed_Area,Regressed-Area,Regressed-Area,Regressed-Area,ME-57,Regressed-Area (Lewis Nevus),
+ME_58_Mel,RLP-219,ME-58-Mel,Mel,VGP,VGP,ME-58,,
+ME_58_MIS,RLP-220,ME-58-MIS,MIS,RGP,RGP,ME-58,,
+ME_58_Nevus,RLP-221,ME-58-Nevus,Nevus,Nevus,Nevus,ME-58,,"Possible contamination of bona fide nevus with melanoma.
+ "
+ME_59_Mel1,RLP-222,ME-59-Mel1,Mel,VGP,VGP,ME-59,,
+ME_59_Mel2,RLP-223,ME-59-Mel2,Mel,VGP,VGP,ME-59,,
+ME_59_Nevus,RLP-224,ME-59-Nevus,Nevus,Nevus-like melanoma,VGP,ME-59,,
+ME_60_Mel,RLP-225,ME-60-Mel,Mel,VGP,VGP,ME-60,,
+ME_60_Nevus,RLP-226,ME-60-Nevus,Nevus,Desmoplastic melanoma component,VGP,ME-60,Lewis (Nevus),Desmoplastic melanoma component.
+ME_61_Mel,RLP-165,ME-61-Mel,Mel,VGP,VGP,ME-61,,
+ME_61_MIS,RLP-228,ME-61-MIS,MIS,RGP,RGP,ME-61,,Possible spill-over from MIS to Nevus.
+ME_61_Nevus,RLP-229,ME-61-Nevus,Nevus,Nevus,Nevus,ME-61,,Possible spill-over from MIS to Nevus.
+ME_62_Mel,RLP-230,ME-62-Mel,Mel,VGP,VGP,ME-62,,
+ME_62_Nevus,RLP-231,ME-62-Nevus,Nevus,Nevus,Nevus,ME-62,,
+ME_63_Melanocytoma,RLP-233,ME-63-Melanocytoma,Melanocytoma+Mel,Exclude sample,Exclude sample,ME-63,Lewis (Melanoma),Tissue type relabel as Melanocytoma+Mel. Mel area marked errounously in Melanocytoma. Need to repeat Melanocytoma.
+ME_63_Mel,RLP-232,ME-63-Mel,Mel,VGP,VGP,ME-63,,
+ME_64_Mel1,RLP-234,ME-64-Mel1,Mel,RGP,RGP,ME-64,RGP (Lewis Mel),
+ME_64_Mel2,RLP-236,ME-64-Mel2,Mel,RGP,RGP,ME-64,RGP (Lewis Mel),
+ME_64_Nevus,RLP-235,ME-64-Nevus,Nevus,Nevus,Nevus,ME-64,,
+ME_65_Mel1,RLP-256,ME-65-Mel1,Mel,RGP,RGP,ME-65,RGP (Lewis Mel),
+ME_65_Mel2,RLP-257,ME-65-Mel2,Mel,RGP,RGP,ME-65,RGP (Lewis Mel),
+ME_65_MIS,RLP-250,ME-65-MIS,MIS,RGP,RGP,ME-65,,
+ME_65_Nevus,RLP-239,ME-65-Nevus,Nevus,Nevus,Nevus,ME-65,,
+ME_66_Mel,RLP-241,ME-66-Mel,Mel,VGP,VGP,ME-66,(Lewis Mel),Melanoma heavily inflamed with lymphocytic infiltrates.
+ME_66_Nevus,RLP-242,ME-66-Nevus,Nevus,Nevus,Nevus,ME-66,,
+ME_67_Mel,RLP-251,ME-67-Mel,Mel,VGP,VGP,ME-67,,
+ME_67_MIS,RLP-252,ME-67-MIS,MIS,MIS,MIS,ME-67,,
+ME_67_Nevus,RLP-253,ME-67-Nevus,Nevus,Nevus,Nevus,ME-67,,
+ME_68_Mel,RLP-254,ME-68-Mel,Mel,RGP,RGP,ME-68,RGP (Lewis Mel),
+ME_68_Nevus,RLP-255,ME-68-Nevus,Nevus,Nevus,Nevus,ME-68,,
+ME_69_MIS,RLP-248,ME-69-MIS,MIS,MIS,MIS,ME-69,,
+ME_69_Nevus,RLP-249,ME-69-Nevus,Nevus,Nevus,Nevus,ME-69,,
+ME_57_Nevus,RLP-267,ME-57_Nevus,Nevus,Nevus,Nevus,ME-57,,Resequenced because previous sample was nevus + evolving melanoma.
+ME_58_Nevus_Merged,RLP-268,ME_58_Nevus_Merged,Nevus,Nevus,Nevus,ME-58,,Can combine RLP-268 and RLP-221 as they seem to be similar. Was resequenced due to a possible contamination of the bona fide nevus with melanoma.
+ME_61_MIS2,RLP-269,ME-61_MIS,MIS,RGP,RGP,ME-61,,Resequenced because previous sample was a possible spill-over from MIS to nevus.
+ME_66_Mel2,RLP-270,ME-66_Mel,Mel,VGP,VGP,ME-66,,Resequenced because previous samples was heavily inflamed with lymphocytic infiltrates.
+ME_70_Mel,RLP-271,ME_70_Mel,Mel,VGP,VGP,ME-70,,New sample added to cohort.
+ME_70_Nevus,RLP-272,ME_70_Nevus,Nevus,Nevus,Nevus,ME-70,,New sample added to cohort.
+ME_43_Nevus2,RLP-273,ME_43_Nevus,Nevus,Nevus,Nevus,ME-43,,Resequenced because previous sample was nevoid melanoma.
+ME_61_Nevus2,RLP-274,ME_61_Nevus,Nevus,Nevus,Nevus,ME-61,,Resequenced because previous sample was a possible spill-over from MIS to nevus.
+CCR_008_Nevus2,RLP-275,CCR_008_Nevus2,Nevus,Nevus,Nevus,CCR-008,,Block ID: 02-7356. Site: abdomen.
+ME_63_Melanocytoma2,RLP-276,ME_63_Melanocytoma2,Melanocytoma,Melanocytoma,Intermediate,ME-63,,Repeated melanocytoma.
+CCR_011_Mel2,RLP-170,CCR_011_Mel,Mel,VGP,VGP,CCR-011,,"Combine with RLP-107. Initial library yield was insufficient. Library preparation from the same RNA stock was repeated but used different barcodes. Although libraries were made in separate batches, the pairs were hybridized together."
+CCR_011_Nevus2,RLP-172,CCR_011_Nevus,Nevus,Nevus,Nevus,CCR-011,,"Combine with RLP-109. Initial library yield was insufficient. Library preparation from the same RNA stock was repeated but used different barcodes. Although libraries were made in separate batches, the pairs were hybridized together."

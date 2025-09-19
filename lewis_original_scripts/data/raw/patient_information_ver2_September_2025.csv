@@ -1,0 +1,94 @@
+﻿patient_id,csd,solar_elastosis_score ,age,sex,sex_change
+CCR-008,Low-CSD,1+,45,Male,Male
+CCR-008,Low-CSD,1+,45,Male ,Male 
+CCR-008,NA,NA,45,Male,Male
+CCR-008,NA,NA,45,Male,Male
+CCR-011,Low-CSD,1+,48,Male,Male
+CCR-011,Low-CSD,1+,48,Male,Male
+CCR-011,Low-CSD,1+,48,Male,Male
+CCR-021,Low-CSD ,1,43,Male,Male
+CCR-021,Low-CSD ,1,43,Male,Male
+CCR-141,Low-CSD,2,58,Female,Female
+CCR-141,Low-CSD,2,58,Female,Female
+CCR-141,Low-CSD,2,58,Female,Female
+CCR-142,Low-CSD,1+,26,Female,Female
+CCR-142,Low-CSD,1+,26,Female,Female
+CCR-142,Low-CSD,1+,26,Female,Female
+CCR-302,Low-CSD,1+,31,Female,Female
+CCR-302,Low-CSD,1+,31,Female,Female
+CCR-302,Low-CSD,1+,31,Female,Female
+JJS-19,Low-CSD,2- ,44,Female,Female
+JJS-19,Low-CSD,2- ,44,Female,Female
+ME-15,Low-CSD ,1+,37,Male,Male
+ME-15,Low-CSD ,1+,37,Male,Male
+ME-29,Low-CSD,2,72,Male,Male
+ME-29,Low-CSD,2,72,Male,Male
+ME-37,High-CSD,3+,64,Male,Male
+ME-37,High-CSD,3+,64,Male,Male
+ME-40,Low-CSD ,2,69,Male,Male
+ME-40,Low-CSD ,2,69,Male,Male
+ME-43,Low-CSD,2-,72,Male,Male
+ME-43,Low-CSD,2-,72,Male,Male
+ME-47,Low-CSD,2-,79,Male,Male
+ME-47,High-CSD,2+,79,Male,Male
+ME-47,High-CSD,2+,79,Male,Male
+ME-48,High-CSD,3-,68,Male,Male
+ME-48,High-CSD,3-,68,Male,Male
+ME-49,Low-CSD,1,40,Male,Male
+ME-49,Low-CSD,1,40,Male,Male
+ME-50,Low-CSD,1+,57,Male,Male
+ME-50,Low-CSD,1+,57,Male,Male
+ME-51,Low-CSD ,1+,49,Female,Male
+ME-51,Low-CSD ,1+,49,Female,Male
+ME-52,Low-CSD,2,81,Male,Male
+ME-52,Low-CSD,2,81,Male,Male
+ME-52,Low-CSD,2,81,Male,Male
+ME-53,Low-CSD,2,43,Female,Female
+ME-53,Low-CSD,2,43,Female,Female
+ME-53,Low-CSD,2,43,Female,Female
+ME-54,Low-CSD,2,76,Male,Male
+ME-54,Low-CSD,2,76,Male,Male
+ME-55,Low-CSD,1+,38,Male,Male
+ME-55,Low-CSD,1+,38,Male,Male
+ME-55,Low-CSD,1+,38,Male,Male
+ME-56,High-CSD,2+,57,Female,Female
+ME-56,High-CSD,2+,57,Female,Female
+ME-56,High-CSD,2+,57,Female,Female
+ME-57,Low-CSD,1+,65,Male,Male
+ME-57,Low-CSD,1+,65,Male,Male
+ME-57,Low-CSD,1+,65,Male,Male
+ME-57,Low-CSD,1+,65,Male,Male
+ME-57,Low-CSD,1+,65,Male,Male
+ME-58,Low-CSD,2,73,Male,Male
+ME-58,Low-CSD,2,73,Male,Male
+ME-58,Low-CSD,2,73,Male,Male
+ME-59,Low-CSD,2,54,Male,Male
+ME-59,Low-CSD,2,54,Male,Male
+ME-59,Low-CSD,2,54,Male,Male
+ME-60,Low-CSD,3,52,Male,Male
+ME-60,Low-CSD,3,52,Male,Male
+ME-61,Low-CSD,2-,54,Female,Female
+ME-61,Low-CSD,2-,54,Female,Female
+ME-61,Low-CSD,2-,54,Female,Female
+ME-62,Low-CSD,1+,82,Male,Male
+ME-62,Low-CSD,1+,82,Male,Male
+ME-63,Low-CSD,2- ,79,Male,Male
+ME-63,Low-CSD,2- ,79,Male,Male
+ME-64,Low-CSD,2-,75,Female,Female
+ME-64,Low-CSD,2-,75,Female,Female
+ME-64,Low-CSD,2-,75,Female,Female
+ME-65,Low-CSD,1+,54,Male,Male
+ME-65,Low-CSD,1+,54,Male,Male
+ME-65,Low-CSD,1+,54,Male,Male
+ME-65,Low-CSD,1+,54,Male,Male
+ME-66,Low-CSD,1+,63,Female,Female
+ME-66,Low-CSD,1+,63,Female,Female
+ME-67,Low-CSD,2,76,Female,Female
+ME-67,Low-CSD,2,76,Female,Female
+ME-67,Low-CSD,2,76,Female,Female
+ME-68,High-CSD,2+,76,Male,Male
+ME-68,High-CSD,2+,76,Male,Male
+ME-69,Low-CSD,2-,56,Female,Female
+ME-69,Low-CSD,2-,56,Female,Female
+ME-70,Low-CSD,1,NA,Female,Female
+ME-70,Low-CSD,1,NA,Female,Female
