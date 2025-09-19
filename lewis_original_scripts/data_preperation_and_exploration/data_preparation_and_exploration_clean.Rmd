@@ -1,0 +1,271 @@
+---
+title: "Data Exploration of RNA-seq"
+author: "Lewis E Tomalin"
+date: "2025-03-26"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      eval = FALSE,
+                      message = FALSE,
+                      warning = FALSE)
+
+require(tableone)
+require(tidyverse)
+
+```
+
+## Data preparation and exploration
+
+This script requires the following data.
+
+* 'data/May_2025_Analysis/UCSF_RNAseq_2025_June_SampleInfo_Lewis.csv'
+* 'data/patient_information_ver2_September_2025.csv'
+* 'data/May_2025_Analysis/UCSF_RNAseq.Sample99.raw.csv'
+* 'data/Homo_sapiens.gene_info'
+* 'data/QuPath_Annotations_Lewis.csv'
+
+and saves the master gene-expression data
+
+'data/processed/DGE_final_samples.rda'
+
+that is required for most subsequent scripts.
+
+This script also makes tables for patient and sample numbers.
+
+NOTE: The first chunk needs to be ran manually before knitting.
+
+NOTE: knit from the project directory 'lewis_analysis_scripts_and_data_original'
+
+```{r preknit}
+
+require(edgeR)
+
+read_csv('data/raw/UCSF_RNAseq_2025_June_SampleInfo_Lewis.csv') %>% 
+  janitor::clean_names() %>%
+  filter(sample != 'ME_63_Melanocytoma') %>%
+  filter(sample != 'JJS_19_Nevus') %>%
+  mutate(david_kuo_outlier=case_when(comment=='PCA outlier (David Kuo)' ~ 'dk_outlier',
+                                     TRUE ~ 'OK')) %>%
+  select(-comment) -> sample_data
+
+colnames(sample_data)
+
+sample_data$final_tissue_type_category %>% table()
+
+sample_data %>%
+  group_by(patient_id) %>%
+  summarise(MIS_count=any(final_tissue_type_category == 'MIS')) %>%
+  mutate(prog_type=case_when(MIS_count==TRUE ~ 'with_MIS',
+                            TRUE ~ 'no_MIS')) %>%
+  full_join(sample_data) -> sample_data
+
+read_csv('data/raw/patient_information_ver2_September_2025.csv') %>% 
+  filter(!duplicated(patient_id)) -> patient_data
+
+sample_data %>% as.data.frame()
+
+sample_data %>%
+  inner_join(patient_data) -> sample_data
+
+sample_data %>% as.data.frame()
+
+read_csv('data/raw/UCSF_RNAseq.Sample99.raw.csv') %>%
+  column_to_rownames('GeneID') -> raw_counts
+
+colnames(raw_counts) %>% sort()
+
+intersect(colnames(raw_counts), sample_data$sample) %>% sort()
+
+setdiff(colnames(raw_counts), sample_data$sample) %>% sort()
+
+setdiff(sample_data$sample, colnames(raw_counts)) %>% sort()
+
+intersect(colnames(raw_counts), sample_data$sample)
+
+tail(raw_counts)
+
+colnames(raw_counts) %>% sort()
+
+sample_data$sample %>% sort()
+
+table(sample_data$batch)
+
+colnames(sample_data)
+
+setdiff(sample_data$sample, colnames(raw_counts))
+setdiff(colnames(raw_counts), sample_data$sample)
+
+sample_data %>%
+  filter(sample %in% colnames(raw_counts)) %>%
+  column_to_rownames('sample') %>%
+  select(patient_id, age, sex, final_tissue_type_category, prog_type,
+         csd, solar_elastosis_score, david_kuo_outlier) %>%
+  mutate(final_tissue_type_category = factor(final_tissue_type_category,
+                                    levels=c('Nevus', 'Intermediate', 'MIS', 'RGP', 'VGP', 
+                                             'Regressed-Area', 'Exclude sample')),
+         csd=str_replace(csd, '-', '_') %>% 
+           factor(levels=c('Low_CSD', 'High_CSD'))) -> metadata
+
+metadata$age <- as.numeric(metadata$age)
+
+metadata$age_centered <- scale(metadata$age, center = TRUE, scale = FALSE)[,1]
+
+raw_counts[,rownames(metadata)] -> count_matrix
+
+head(metadata)
+head(raw_counts)
+
+# Match column order of counts to metadata
+stopifnot(colnames(count_matrix) == rownames(metadata))
+
+read_delim('data/raw/Homo_sapiens.gene_info') %>%
+  select(GeneID, Symbol) %>%
+  mutate(GeneID=as.character(GeneID)) %>%
+  as.data.frame() -> Annot
+
+rownames(Annot) <- Annot$GeneID
+
+Annot <- Annot[rownames(count_matrix),]
+
+metadata$age_centered_impute <- metadata$age_centered
+
+metadata$age_centered_impute[is.na(metadata$age_centered_impute)] <- 0
+
+metadata$samples <- rownames(metadata)
+
+read_csv('data/raw/QuPath_Annotations_Lewis.csv') %>%
+  mutate(samples = str_replace_all(samples, '-', '_')) -> QuPath
+
+QuPath %>% 
+  filter(complete.cases(detections)) %>% 
+  droplevels.data.frame() %>%
+  pivot_longer(cols=c(lymphocyte:other, stroma, immune, lymphocyte_plus_tumor)) %>% 
+  as.data.frame() %>%
+  mutate(proportion=value/detections) %>%
+  pivot_wider(id_cols = c(til_ratio),
+              names_from = name,
+              values_from = proportion) -> db_tab_prop
+
+CreateTableOne(vars=c('lymphocyte', 'tumor', 'keratinocyte', 'macrophage', 'melanophage', 
+                      'other', 'lymphocyte_plus_tumor', 'til_ratio', 
+                      'immune', 'stroma'),
+               data=db_tab_prop,
+               test = FALSE,
+               addOverall = TRUE)
+
+dim(QuPath)
+dim(metadata)
+
+intersect(QuPath$samples, metadata$samples)
+setdiff(QuPath$samples, metadata$samples)
+setdiff(metadata$samples, QuPath$samples)
+
+metadata %>%
+  left_join(y=QuPath) -> metadata
+
+
+# Create DGEList
+dge <- DGEList(counts = count_matrix,
+               samples = metadata,
+               genes = Annot)
+
+#save(dge, file='data/processed/DGE_all_samples_nofilter.rda')
+
+dge_final <- dge[,dge$samples$final_tissue_type_category %in% 
+                   c('Nevus', 'Intermediate', 'MIS', 'RGP', 'VGP'), 
+                 keep.lib.sizes = FALSE]
+
+dge_final$samples$final_tissue_type_category <- droplevels(dge_final$samples$final_tissue_type_category)
+
+dge_final$samples$solar_elastosis_score <- factor(dge_final$samples$solar_elastosis_score,
+                                                  levels=c('1', '1+', '2-', '2', '2+', '3-', '3', '3+'))
+
+save(dge_final, file='data/processed/DGE_final_samples.rda')
+
+```
+
+### Patient level data summary
+
+```{r eval=T}
+
+load('data/processed/DGE_final_samples.rda')
+
+CreateTableOne(vars=c('age', 'sex', 'prog_type', 
+                      'csd', 'solar_elastosis_score', 'age_centered', 'age_centered_impute'),
+               data=dge_final$samples %>%
+                 filter(!duplicated(patient_id)),
+                addOverall = TRUE)
+
+```
+
+
+### Sample level data summary
+
+```{r eval=T}
+
+load('data/processed/DGE_final_samples.rda')
+
+CreateTableOne(vars=c('final_tissue_type_category'),
+               data=dge_final$samples,
+                addOverall = TRUE)
+
+```
+
+
+### Tile Map showing numbers of samples per patient by tissue
+
+```{r eval=T, fig.width=7, fig.height=8}
+
+load('data/processed/DGE_final_samples.rda')
+
+dge_final$samples %>% 
+  group_by(final_tissue_type_category, patient_id) %>%
+  summarise(COUNT=n()) %>%
+  ggplot(aes(x=final_tissue_type_category,
+             y=patient_id,
+             fill=final_tissue_type_category))+
+  geom_tile()+
+  geom_text(aes(label=COUNT), size=3)+
+  theme_classic()
+
+
+```
+
+### QuPath Summary Table by tissue
+
+```{r eval=TRUE}
+
+load('data/processed/DGE_final_samples.rda')
+
+dge_final$samples %>% 
+  filter(complete.cases(detections)) %>% 
+  droplevels.data.frame() %>%
+  pivot_longer(cols=c(lymphocyte:other, stroma, immune, lymphocyte_plus_tumor)) %>% 
+  as.data.frame() %>%
+  mutate(proportion=value/detections) %>%
+  pivot_wider(id_cols = c(patient_id, samples, final_tissue_type_category, til_ratio),
+              names_from = name,
+              values_from = proportion) -> db_tab_prop
+
+CreateTableOne(vars=c('lymphocyte', 'tumor', 'keratinocyte', 'macrophage', 'melanophage', 
+                      'other', 'lymphocyte_plus_tumor', 'til_ratio', 
+                      'immune', 'stroma'),
+               strata = 'final_tissue_type_category',
+               data=db_tab_prop,
+               test = FALSE,
+               addOverall = TRUE)
+
+```
+
+
+
+
+
+
+
+
