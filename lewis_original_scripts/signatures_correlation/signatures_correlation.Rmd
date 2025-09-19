@@ -1,0 +1,1364 @@
+---
+title: "Correlation between signatures"
+author: "Lewis E Tomalin"
+date: "2025-03-26"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      eval=FALSE,
+                      message = FALSE,
+                      warning = FALSE)
+
+require(tidyverse)
+require(tableone)
+require(rstatix)
+
+```
+
+Prepare data
+
+GET ORGANIZED!! include html links in slide deck.
+
+select specific signatures that we want to rely on? which is best?
+
+Is there an approach to explore progression within each patient?
+
+Are there pathways associated with specific driver-events. Is BRAF associated specific pathways.  
+
+```{r echo=FALSE, eval=FALSE}
+
+load('data/processed/db_gsva_custom_correct.rda')
+
+load('data/processed/db_ssgsea_custom_correct.rda')
+
+setdiff(colnames(db_gsva_custom_correct),
+        colnames(db_ssgsea_custom_correct))
+
+db_gsva_custom_correct %>%
+  full_join(y=db_ssgsea_custom_correct) %>% 
+  rename_with(~ str_replace(., "^gsva_", "custom_gsva_")) %>%
+  rename_with(~ str_replace(., "^ssgsea_", "custom_ssgsea_")) -> db_temp
+
+db_temp
+
+
+load('data/processed/db_GSVA_David_correct.rda')
+
+db_GSVA_David_correct %>%
+  rename_with(~ paste0("david_gsva_", .),
+              APM1:last_col()) -> db_GSVA_David_correct
+
+load('data/processed/db_ssGSEA_David_correct.rda')
+
+db_ssGSEA_David_correct %>%
+  rename_with(~ paste0("david_ssgsea_", .),
+              APM1:last_col()) -> db_ssGSEA_David_correct
+
+setdiff(colnames(db_GSVA_David_correct),
+        colnames(db_ssGSEA_David_correct))
+
+db_temp %>%
+  full_join(y=db_GSVA_David_correct) %>%
+  full_join(y=db_ssGSEA_David_correct) -> db_temp
+
+db_temp
+
+c('lymphocyte',  'tumor', 'keratinocyte', 'macrophage', 'melanophage', 
+  'other', 'detections', 'lymphocyte_plus_tumor',  'til_ratio', 'immune', 'stroma') -> qupath_
+
+db_temp %>%
+  rename_with(~ paste0("qupath_", .), any_of(qupath_)) -> db_temp
+
+load('data/processed/xcell_data.rda')
+
+cell_sample_data %>% 
+  rename_with(~ str_replace(., "^cell_", "xcell_")) %>%
+  select(sample, contains('xcell_')) %>%
+  rename(samples= sample) -> xcell_data 
+
+db_temp %>%
+  full_join(y=xcell_data) -> db_temp
+
+load('data/processed/cibersort_data.rda')
+
+cell_sample_data %>% 
+  rename_with(~ str_replace(., "^abs_", "cibersort_abs_")) %>%
+  rename_with(~ str_replace(., "^prop_", "cibersort_prop_")) %>%
+  select(sample, contains('cibersort_')) %>%
+  rename(samples= sample) -> cibersort_data 
+
+db_temp %>%
+  full_join(y=cibersort_data) -> db_temp
+
+db_all_signatures <- db_temp
+
+db_all_signatures %>%
+  select(-david_kuo_outlier) -> db_all_signatures
+
+save(db_all_signatures, 
+     file='data/processed/db_all_signatures.rda')  
+
+
+```
+
+
+```{r echo=FALSE, eval=FALSE}
+
+## calculates all pairwise correlations
+
+load('data/processed/db_all_signatures.rda')
+
+
+
+db_all_signatures %>%
+  rename(detections=qupath_detections,
+         til_ratio=qupath_til_ratio) %>%
+  pivot_longer(cols=contains('qupath_')) %>%
+  mutate(value=asin(sqrt(value/detections))) %>%
+  pivot_wider(id_cols = everything(),
+              names_from = name,
+              values_from = value) %>%
+  rename(qupath_til_ratio=til_ratio) -> db_all_signatures
+
+
+
+db_all_signatures %>% 
+  column_to_rownames('samples') %>% 
+  select(starts_with('david_'), starts_with('qupath_'),
+         starts_with('custom_'), starts_with('xcell_'), starts_with('cibersort_')) %>%
+  cor_mat(method = 'spearman') -> cor_db
+
+
+db_all_signatures %>% 
+  column_to_rownames('samples') %>% 
+  select(starts_with('david_'), starts_with('qupath_'),
+         starts_with('custom_'), starts_with('xcell_'), starts_with('cibersort_')) %>%
+  cor_pmat(method = 'spearman')  -> cor_pval_db
+
+save(cor_db, cor_pval_db,
+     file='signatures_correlation/results/cor_mat_pval.rda')
+
+
+```
+
+
+## Davids signatures ssGSEA vs xCell
+
+```{r fig.width=22, fig.height=12, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  select(rowname, contains('xcell_')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  select(rowname, contains('xcell_')) %>%
+  pivot_longer(cols=2:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='David ssGSEA correlation with xCell',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+```
+
+
+## Davids ssGSEA signatures vs CIBERSORT
+
+```{r fig.width=12, fig.height=12, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  select(rowname, contains('cibersort_abs')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  select(rowname, contains('cibersort_abs')) %>%
+  pivot_longer(cols=2:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='David ssGSEA correlation with CIBERSORT',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+```
+
+## Davids ssGSEA signatures vs custom Signatures
+
+```{r fig.width=12, fig.height=12, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+
+cor_db %>%
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  select(rowname, contains('custom_ssgsea')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  select(rowname, contains('custom_ssgsea')) %>%
+  pivot_longer(cols=2:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='David ssGSEA correlation with custom signatures',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+```
+
+
+## Davids ssGSEA signatures vs qupath_
+
+NOTES: Make specific plots for NMD, specifically qupath_ Immune Cells
+
+```{r fig.width=14, fig.height=14, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  filter(str_detect(rowname, 'custom_ssGSEA', negate = T)) %>%
+  select(rowname, contains('qupath_')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  filter(str_detect(rowname, 'custom_ssGSEA', negate = T)) %>%
+  select(rowname, contains('qupath_')) %>%
+  pivot_longer(cols=qupath_til_ratio:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='David ssGSEA correlation with qupath_',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+
+
+
+```
+
+
+### ssGSEA score
+
+This is correlation, not a mixed-model
+
+```{r echo=FALSE, fig.width=10, fig.height=12, eval=TRUE}
+
+require(ggpubr)
+
+load('data/processed/db_all_signatures.rda')
+
+db_all_signatures %>%
+  select(final_tissue_type_category, patient_id, age_centered_impute,  sex, 
+         samples, contains('qupath_'), contains('NMD')) %>%
+  filter(complete.cases(qupath_detections)) %>%
+  rename(detections=qupath_detections) %>% 
+  pivot_longer(cols=contains('qupath_')) %>%
+  mutate(value=case_when(name == 'qupath_til_ratio' ~ value,
+                         TRUE ~ value/detections)) %>%
+  ggplot(aes(x=custom_ssgsea_NMD_Reactome,
+             y=asin(sqrt(value))))+
+  geom_point(aes(color=final_tissue_type_category))+
+  geom_smooth(inherit.aes = T, color='black',
+              method = 'lm', linetype='dashed') +
+  stat_cor(inherit.aes = T, 
+           method = "spearman", 
+           size = 5) + 
+  facet_wrap(~name, ncol=3, scales='free')+
+  labs(y='cell-type proportion (arcsin)',
+       title='Spearman correlation of qupath_ with NMD ssGSEA score')+
+  theme_bw()+
+  theme(legend.position = 'bottom')
+
+```
+
+### ssGSEA score, David
+
+```{r echo=FALSE, fig.width=10, fig.height=12, eval=TRUE}
+
+require(ggpubr)
+
+load('data/processed/db_all_signatures.rda')
+
+db_all_signatures %>%
+  select(final_tissue_type_category, patient_id, age_centered_impute,  sex, 
+         samples, contains('qupath_'), contains('NMD')) %>%
+  filter(complete.cases(qupath_detections)) %>%
+  rename(detections=qupath_detections) %>% 
+  pivot_longer(cols=contains('qupath_')) %>%
+  mutate(value=case_when(name == 'qupath_til_ratio' ~ value,
+                         TRUE ~ value/detections)) %>%
+  ggplot(aes(x=custom_ssgsea_NMD_Reactome,
+             y=asin(sqrt(value))))+
+  geom_point(aes(color=final_tissue_type_category))+
+  geom_smooth(inherit.aes = T, color='black',
+              method = 'lm', linetype='dashed') +
+  stat_cor(inherit.aes = T, 
+           method = "spearman", 
+           size = 5) + 
+  facet_wrap(~name, ncol=3, scales='free')+
+  labs(y='cell-type proportion (arcsin)',
+       title='Spearman correlation of qupath_ with NMD ssGSEA score')+
+  theme_bw()+
+  theme(legend.position = 'bottom')
+
+```
+
+## Our custom signatures vs qupath_
+
+```{r fig.width=12, fig.height=12, eval=TRUE}
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'custom')) %>%
+  select(rowname, contains('qupath_')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'custom')) %>%
+  select(rowname, contains('qupath_')) %>%
+  pivot_longer(cols=qupath_til_ratio:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='custom sets correlation with qupath_',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+
+```
+
+
+## xCell scores vs qupath_
+
+```{r fig.width=8, fig.height=16, eval=TRUE}
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'xcell_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'xcell_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  pivot_longer(cols=qupath_til_ratio:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='xCell correlation with qupath_',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+```
+
+## absolute CIBERSORT score vs qupath_
+
+```{r fig.width=8, fig.height=8, eval=TRUE}
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'cibersort_abs_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'cibersort_abs_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  pivot_longer(cols=qupath_til_ratio:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='CIBERSORT correlation with qupath_',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+
+```
+
+## compositional CIBERSORT score vs qupath_
+
+```{r fig.width=8, fig.height=8, eval=TRUE}
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'cibersort_prop_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'cibersort_prop_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  pivot_longer(cols=qupath_til_ratio:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='Compositional CIBERSORT correlation with qupath_',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+
+```
+
+## Pairwise qupath_
+
+NOTES: Make specific plots for NMD, spacifically qupath_ Immune Cells
+
+```{r fig.width=6, fig.height=6, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'qupath_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  column_to_rownames('rowname') -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'qupath_')) %>%
+  select(rowname, contains('qupath_')) %>%
+  pivot_longer(cols=qupath_til_ratio:last_col()) %>%
+  add_significance(p.col = 'value',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  pivot_wider(id_cols = rowname,
+              values_from = value.signif,
+              names_from = name) %>%
+  column_to_rownames('rowname') -> temp_sig
+
+require(pheatmap)
+
+BREAKS <- seq(-1, 1, by=0.01)
+
+pheatmap(temp,
+         breaks = BREAKS,
+         color = colorRampPalette(c('blue', 'white', 'red'))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = temp_sig,
+         #annotation_col = select(columun_annots, final_tissue_type, prog_type),
+         cluster_cols = T,
+         cluster_rows=T, 
+         main='Pairwise qupath_',
+         cellwidth = 16,
+         cellheight = 12,
+         #gaps_col = which(!duplicated(columun_annots$final_tissue_type))[-1]-1,
+         scale = 'none')
+
+
+
+```
+
+## Comparing NMD with qupath_
+
+### GSVA score
+
+```{r echo=FALSE, fig.width=10, fig.height=12, eval=TRUE}
+
+load('data/processed/db_all_signatures.rda')
+
+require(ggpubr)
+
+db_all_signatures %>%
+  select(final_tissue_type_category, patient_id, age_centered_impute,  sex, 
+         samples, contains('qupath_'), contains('NMD')) %>%
+  filter(complete.cases(qupath_detections)) %>%
+  rename(detections=qupath_detections) %>% 
+  pivot_longer(cols=contains('qupath_')) %>%
+  mutate(value=case_when(name == 'qupath_til_ratio' ~ value,
+                         TRUE ~ value/detections)) %>%
+  ggplot(aes(x=custom_gsva_NMD_Reactome,
+             y=asin(sqrt(value))))+
+  geom_point(aes(color=final_tissue_type_category))+
+  geom_smooth(inherit.aes = T, color='black',
+              method = 'lm', linetype='dashed') +
+  stat_cor(inherit.aes = T, 
+           method = "pearson", 
+           size = 5) + 
+  facet_wrap(~name, ncol=3, scales='free')+
+  labs(y='cell-type proportion (arcsin)',
+       title='pearson correlation of qupath_ with NMD GSVA score')+
+  theme_bw()+
+  theme(legend.position = 'bottom')
+
+```
+
+### LME stats 
+
+```{r eval=TRUE}
+
+L='GSVA_rgp_up'
+
+require(rstatix)
+require(emmeans)
+require(lme4)
+
+load('data/processed/db_all_signatures.rda')
+
+db_all_signatures %>%
+  select(final_tissue_type_category, patient_id, age_centered_impute,  sex, 
+         samples, contains('qupath_'), contains('NMD')) %>%
+  filter(complete.cases(qupath_detections)) %>%
+  rename(detections=qupath_detections) %>% 
+  pivot_longer(cols=contains('qupath_')) %>%
+  mutate(value=case_when(name == 'qupath_til_ratio' ~ value,
+                         TRUE ~ value/detections)) %>%
+  mutate(value=asin(sqrt(value))) -> db_mod
+
+L = 'qupath_keratinocyte'
+
+require(lme4)
+
+lapply(unique(db_mod$name), function(L){
+  
+  #print(L)
+
+  db_mod %>%
+    filter(name==L) %>%
+    droplevels.data.frame() -> temp
+  
+  lmer(value ~ custom_gsva_NMD_Reactome + age_centered_impute + sex + (1|patient_id),
+       data = temp, REML = TRUE) -> mod_temp
+  
+  lmer(value ~ custom_gsva_NMD_Reactome + final_tissue_type_category + age_centered_impute + sex + (1|patient_id),
+       data = temp, REML = TRUE) -> mod3
+  
+  anova(mod_temp, mod3) # including tissue-type is a better fit. 
+  
+  mod3 %>%
+    emtrends(specs= ~1, var='custom_gsva_NMD_Reactome') %>% 
+    test() %>%
+    mutate(score_name=L) %>%
+    full_join(y=mod3 %>%
+                emtrends(specs= ~1, var='custom_gsva_NMD_Reactome') %>% as.data.frame()) -> res
+  
+  return(res)
+    
+}) %>%
+  bind_rows() %>%
+  #adjust_pvalue(method='fdr') %>%
+  add_significance() -> results_db
+  
+results_db %>%
+  mutate(score_name=str_remove(score_name, 'custom_gsva_')) %>%
+  ggplot(aes(x=reorder(score_name, custom_gsva_NMD_Reactome.trend),
+             y=custom_gsva_NMD_Reactome.trend,
+             color=score_name))+
+  geom_hline(yintercept = 0, linetype='dashed')+
+  geom_point()+
+  geom_errorbar(aes(ymin=`lower.CL`, ymax = `upper.CL`), width=0.2)+
+  geom_label(aes(label=p.value.signif), color='black')+
+  labs(x='Melanoma-signature name',
+       y='Association with GSVA_NMD_Reactome (slope, CI95)')+
+  theme_bw()+
+  coord_flip()
+
+
+```
+
+
+## NMD score on x-axis, immune scores on the Y, show correlation scores.
+
+wanted plot: NMD score on x-axis, immune scores on the Y, show correlation scores.
+
+```{r fig.width=10, fig.height=6, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'qupath_')) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'qupath_')) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) %>%
+  add_significance(p.col = 'custom_gsva_NMD_Reactome',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_NMD_Reactome) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_NMD_Reactome, y=reorder(rowname, custom_gsva_NMD_Reactome)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_NMD_Reactome))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_NMD_Reactome.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways')+
+  lims(x=c(-1,1))
+
+
+
+```
+
+### NMD vs Davids score
+
+```{r fig.width=10, fig.height=6, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  filter(str_detect(rowname, 'custom_ssgsea', negate = T)) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'david_ssgsea')) %>%
+  filter(str_detect(rowname, 'custom_ssGSEA', negate = T)) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) %>%
+  add_significance(p.col = 'custom_gsva_NMD_Reactome',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_NMD_Reactome) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_NMD_Reactome, y=reorder(rowname, custom_gsva_NMD_Reactome)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_NMD_Reactome))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_NMD_Reactome.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways')+
+  lims(x=c(-1,1))
+
+
+
+```
+
+### NMD vs xCell score
+
+```{r fig.width=10, fig.height=10, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'xcell_')) %>%
+    filter(str_detect(rowname, 'custom_', negate = T)) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'xcell_')) %>%
+    filter(str_detect(rowname, 'custom_', negate = T)) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) %>%
+  add_significance(p.col = 'custom_gsva_NMD_Reactome',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_NMD_Reactome) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_NMD_Reactome, y=reorder(rowname, custom_gsva_NMD_Reactome)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_NMD_Reactome))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_NMD_Reactome.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways', labs='NMD vs xCell')+
+  lims(x=c(-1,1))
+
+
+
+```
+
+### NMD vs abs CIBERSORT
+
+```{r fig.width=10, fig.height=10, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'abs_CIBERSORT')) %>%
+    filter(str_detect(rowname, 'custom_', negate = T)) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'abs_CIBERSORT')) %>%
+    filter(str_detect(rowname, 'custom_', negate = T)) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) %>%
+  add_significance(p.col = 'custom_gsva_NMD_Reactome',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_NMD_Reactome) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_NMD_Reactome, y=reorder(rowname, custom_gsva_NMD_Reactome)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_NMD_Reactome))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_NMD_Reactome.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways', labs='NMD vs CIBERSORT')+
+  lims(x=c(-1,1))
+
+
+
+```
+
+
+### NMD vs custom signatures
+
+```{r fig.width=10, fig.height=10, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'custom_')) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'custom_')) %>%
+  select(rowname, contains('custom_gsva_NMD_Reactome')) %>%
+  add_significance(p.col = 'custom_gsva_NMD_Reactome',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_NMD_Reactome) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_NMD_Reactome, y=reorder(rowname, custom_gsva_NMD_Reactome)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_NMD_Reactome))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_NMD_Reactome.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways', labs='NMD vs CIBERSORT')+
+  lims(x=c(-1,1))
+
+
+```
+
+## Danaher score on x-axis, immune scores on the Y, show correlation scores.
+
+wanted plot: Danaher score on x-axis, immune scores on the Y, show correlation scores.
+
+```{r fig.width=10, fig.height=6, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'qupath_')) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'qupath_')) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) %>%
+  add_significance(p.col = 'custom_gsva_immune_infiltration',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_immune_infiltration) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_immune_infiltration, y=reorder(rowname, custom_gsva_immune_infiltration)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_immune_infiltration))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_immune_infiltration.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways')+
+  lims(x=c(-1,1))
+
+
+
+```
+
+### Danaher vs Davids score
+
+```{r fig.width=10, fig.height=6, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'ssGSEA')) %>%
+  filter(str_detect(rowname, 'custom_ssGSEA', negate = T)) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'ssGSEA')) %>%
+  filter(str_detect(rowname, 'custom_ssGSEA', negate = T)) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) %>%
+  add_significance(p.col = 'custom_gsva_immune_infiltration',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_immune_infiltration) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_immune_infiltration, y=reorder(rowname, custom_gsva_immune_infiltration)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_immune_infiltration))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_immune_infiltration.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways')+
+  lims(x=c(-1,1))
+
+
+```
+
+### Danaher vs xCell score
+
+```{r fig.width=10, fig.height=10, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'xcell_')) %>%
+    filter(str_detect(rowname, 'custom_', negate = T)) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'xcell_')) %>%
+    filter(str_detect(rowname, 'custom_', negate = T)) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) %>%
+  add_significance(p.col = 'custom_gsva_immune_infiltration',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_immune_infiltration) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_immune_infiltration, y=reorder(rowname, custom_gsva_immune_infiltration)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_immune_infiltration))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_immune_infiltration.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways')+
+  lims(x=c(-1,1))
+
+
+
+```
+
+### Danaher vs abs CIBERSORT
+
+```{r fig.width=10, fig.height=10, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'cibersort_abs_')) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'cibersort_abs_')) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) %>%
+  add_significance(p.col = 'custom_gsva_immune_infiltration',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_immune_infiltration) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_immune_infiltration, y=reorder(rowname, custom_gsva_immune_infiltration)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_immune_infiltration))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_immune_infiltration.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways')+
+  lims(x=c(-1,1))
+
+
+```
+
+
+### Danaher vs custom signatures
+
+```{r fig.width=10, fig.height=10, eval=TRUE}
+
+require(tidyverse)
+require(rstatix)
+require(ggpubr)
+
+load('signatures_correlation/results/cor_mat_pval.rda')
+
+cor_db %>%
+  filter(str_detect(rowname, 'custom_')) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) -> temp
+
+cor_pval_db %>% 
+  filter(str_detect(rowname, 'custom_')) %>%
+  select(rowname, contains('custom_gsva_immune_infiltration')) %>%
+  add_significance(p.col = 'custom_gsva_immune_infiltration',
+                   symbols = c("****", "***", "**", "*", "")) %>%
+  select(-custom_gsva_immune_infiltration) -> temp_sig
+
+temp %>%
+  full_join(y=temp_sig) %>%
+  ggplot(aes(x=custom_gsva_immune_infiltration, y=reorder(rowname, custom_gsva_immune_infiltration)))+
+  geom_vline(xintercept = 0, linetype='dashed', color='gray25')+
+  geom_point(aes(color=custom_gsva_immune_infiltration))+
+  scale_color_gradient2(midpoint = 0)+
+  geom_text(aes(label=custom_gsva_immune_infiltration.signif), nudge_y = 0.1)+
+  theme_bw()+
+  labs(y='pathways')+
+  lims(x=c(-1,1))
+
+
+```
+
+
+
+### Danaher vs NMD reactome GSVA
+
+```{r fig.width=4.5, fig.height=4, echo=TRUE, eval=TRUE}
+
+require(lme4)
+require(tidyverse)
+require(emmeans)
+require(ggpubr)
+
+load('data/processed/db_all_signatures.rda')
+
+
+
+lmer(custom_gsva_immune_infiltration ~ custom_gsva_NMD_Reactome + final_tissue_type_category + age_centered_impute + 
+       sex + (1|patient_id),
+     data=db_all_signatures) -> mod1
+
+lmer(custom_gsva_immune_infiltration ~ custom_gsva_NMD_Reactome + age_centered_impute + 
+       sex + (1|patient_id),
+     data=db_all_signatures) -> mod2
+
+anova(mod1, mod2) # adding tissue type to the model does not improve the fit, use mod2 for parsimony
+
+mod2 %>%
+  summary()
+
+mod2 %>%
+  emtrends(specs=~1, var='custom_gsva_NMD_Reactome') %>%
+  test()
+
+mod2 %>%
+  emtrends(specs=~1, var='custom_gsva_NMD_Reactome') %>%
+  test() %>% 
+  as_tibble() -> emt1
+
+```
+
+
+```{r fig.width=6.5, fig.height=4.5, eval=TRUE}
+
+load('data/processed/db_all_signatures.rda')
+
+
+
+newdata <- db_all_signatures %>%
+  summarize(
+    age_centered_impute = mean(age_centered_impute, na.rm=TRUE),
+    sex = first(sex)) %>%
+  crossing(custom_gsva_NMD_Reactome = seq(min(db_all_signatures$custom_gsva_NMD_Reactome, na.rm=TRUE),
+                                          max(db_all_signatures$custom_gsva_NMD_Reactome, na.rm=TRUE),
+                                          length.out=100))
+
+# Predict population-level (exclude REs)
+newdata$fit <- predict(mod2, newdata=newdata, re.form=NA)
+
+db_all_signatures %>%
+  select(final_tissue_type_category, patient_id, age_centered_impute,  sex,
+         samples, custom_gsva_immune_infiltration, custom_gsva_NMD_Reactome) %>%
+  ggplot(aes(x=custom_gsva_NMD_Reactome,
+             y=custom_gsva_immune_infiltration))+
+  geom_point(aes(color=final_tissue_type_category))+
+  geom_line(data=newdata, aes(y=fit), color="blue", size=1.2) +
+  labs(title=paste0('Association of Danaher signature with NMD \n p = ',emt1$p.value,'  (LME)'))+
+  theme_bw()+  
+  scale_color_manual(values=c(Nevus='green',
+                              Intermediate='gold1',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  theme(legend.position = 'bottom')
+
+
+
+
+```
+
+
+### Danaher vs NMD reactome ssGSEA
+
+```{r fig.width=4.5, fig.height=4, echo=TRUE, eval=TRUE}
+
+require(lme4)
+require(tidyverse)
+require(emmeans)
+require(ggpubr)
+
+load('data/processed/db_all_signatures.rda')
+
+
+
+lmer(custom_ssgsea_immune_infiltration ~ custom_ssgsea_NMD_Reactome + 
+       final_tissue_type_category + age_centered_impute + 
+       sex + (1|patient_id),
+     data=db_all_signatures) -> mod1
+
+lmer(custom_ssgsea_immune_infiltration ~ custom_ssgsea_NMD_Reactome + age_centered_impute + 
+       sex + (1|patient_id),
+     data=db_all_signatures) -> mod2
+
+anova(mod1, mod2) # adding tissue type to the model does not improve the fit, use mod2 for parsimony
+
+mod2 %>%
+  summary()
+
+mod2 %>%
+  emtrends(specs=~1, var='custom_ssgsea_NMD_Reactome') %>%
+  test()
+
+mod2 %>%
+  emtrends(specs=~1, var='custom_ssgsea_NMD_Reactome') %>%
+  test() %>% 
+  as_tibble() -> emt1
+
+```
+
+
+```{r fig.width=6.5, fig.height=4.5, eval=TRUE}
+
+load('data/processed/db_all_signatures.rda')
+
+
+
+newdata <- db_all_signatures %>%
+  summarize(
+    age_centered_impute = mean(age_centered_impute, na.rm=TRUE),
+    sex = first(sex)) %>%
+  crossing(custom_ssgsea_NMD_Reactome = seq(min(db_all_signatures$custom_ssgsea_NMD_Reactome, na.rm=TRUE),
+                                          max(db_all_signatures$custom_ssgsea_NMD_Reactome, na.rm=TRUE),
+                                          length.out=100))
+
+# Predict population-level (exclude REs)
+newdata$fit <- predict(mod2, newdata=newdata, re.form=NA)
+
+db_all_signatures %>%
+  select(final_tissue_type_category, patient_id, age_centered_impute,  sex,
+         samples, custom_ssgsea_immune_infiltration, custom_ssgsea_NMD_Reactome) %>%
+  ggplot(aes(x=custom_ssgsea_NMD_Reactome,
+             y=custom_ssgsea_immune_infiltration))+
+  geom_point(aes(color=final_tissue_type_category))+
+  geom_line(data=newdata, aes(y=fit), color="blue", size=1.2) +
+  labs(title=paste0('Association of Danaher signature with NMD \n p = ',emt1$p.value,'  (LME)'))+
+  theme_bw()+  
+  scale_color_manual(values=c(Nevus='green',
+                              Intermediate='gold1',
+                              MIS='orange',
+                              RGP='red',
+                              VGP='purple'))+
+  theme(legend.position = 'bottom')
+
+
+
+
+```
+
+### We can also use rmcorr() 
+
+This is repeated measures correlation (correlation when you have multiple samples from same patient).
+
+This is essentially the same as using a random-intercept model, but cannot adjust for covariates.
+
+```{r eval=TRUE}
+
+load('data/processed/db_all_signatures.rda')
+
+
+
+# install.packages("rmcorr")  # run once
+library(rmcorr)
+
+# Simple rm-corr on your data
+rmc <- rmcorr(
+  participant = patient_id,
+  measure1    = custom_gsva_NMD_Reactome,
+  measure2    = custom_gsva_immune_infiltration,
+  dataset     = db_all_signatures
+)
+
+rmc           # prints r, CI, df, p-value, slope, etc.
+
+# Quick built-in plot (parallel lines with common slope)
+plot(rmc, overall = TRUE,
+     xlab = "NMD Reactome (GSVA)",
+     ylab = "Immune infiltration (GSVA)")
+
+
+
+
+```
+
+
+
+```{r eval=TRUE}
+
+load('data/processed/db_all_signatures.rda')
+
+# install.packages("rmcorr")  # run once
+library(rmcorr)
+
+# Simple rm-corr on your data
+rmc <- rmcorr(
+  participant = patient_id,
+  measure1    = custom_ssgsea_NMD_Reactome,
+  measure2    = custom_ssgsea_immune_infiltration,
+  dataset     = db_all_signatures
+)
+
+rmc           # prints r, CI, df, p-value, slope, etc.
+
+# Quick built-in plot (parallel lines with common slope)
+plot(rmc, overall = TRUE,
+     xlab = "NMD Reactome (ssGSEA)",
+     ylab = "Immune infiltration (ssGSEA)")
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,1130 @@
+---
+title: "model1 with custom KC-adj fit DEGs"
+author: "Lewis E Tomalin, PhD"
+date: "2025-06-26"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      eval = FALSE,
+                      message = FALSE,
+                      warning = FALSE)
+
+require(tableone)
+require(tidyverse)
+require(variancePartition)
+
+```
+
+This script requires: 
+
+'data/processed/DGE_final_samples.rda'
+
+This scripts creates: 
+
+'tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda' 
+'tissue_type_degs_cononical_kc_adjust/results/gsea/fgsea_hallmark_results.csv'
+'tissue_type_degs_cononical_kc_adjust/results/gsea/fgsea_reactome_results.csv'
+'tissue_type_degs_cononical_kc_adjust/results/pca_stuff/fit_reduced_list_for_pca.rda'
+
+
+## This script fits model1 with KC adjustment, using our custom KC signature
+
+FCH > 2, FDR < 0.05
+
++ Variance partitian
++ numbers or DEGs for each contrast
++ volcano plots
++ heatmaps
++ venn diagrams
++ GSEA
+
+```{r}
+
+# Run this chunk before knitting
+
+load('data/processed/DGE_final_samples.rda')
+
+dge <- dge_final
+
+dge <- calcNormFactors(dge)
+
+design <- model.matrix(~ final_tissue_type_category + sex + age_centered_impute, 
+                       data = dge$samples)
+
+keep <- filterByExpr(dge, 
+                     design = design, 
+                     min.count = 25,
+                     min.prob = 1)
+
+table(keep)
+
+dge <- dge[keep, , keep.lib.sizes = FALSE]
+
+table(keep)
+
+dge <- calcNormFactors(dge)
+
+load('data/processed/db_gsva_custom_correct.rda')
+
+db_gsva_custom_correct <- as.data.frame(db_gsva_custom_correct)
+
+dge$samples
+
+dge$samples <- bind_cols(dge$samples, db_gsva_custom_correct[rownames(dge$samples),'gsva_canonical_kc', drop=F])
+
+# Define formula
+form <- ~ final_tissue_type_category + sex + age_centered_impute + gsva_canonical_kc + (1 | patient_id)
+
+# Optional: speed up computation
+#register(SnowParam(20)) # or use SnowParam for Windows
+#bpparam()
+
+# For Mac
+library(BiocParallel)
+#bp <- MulticoreParam(8) 
+bp <- SnowParam(20) 
+
+## Need to explore missing a little more...
+
+dge$samples %>% dim()
+
+vobj <- voomWithDreamWeights(dge, 
+                             formula=form, 
+                             data = dge$samples,
+                             plot = TRUE,
+                             save.plot = TRUE,
+                             BPPARAM = bp)
+
+
+# Define contrast: Mel vs MIS
+contrast_matrix <- makeContrastsDream(
+  MIS_vs_Nevus = final_tissue_type_categoryMIS,
+  RGP_vs_Nevus = final_tissue_type_categoryRGP,
+  VGP_vs_Nevus = final_tissue_type_categoryVGP,
+  RGP_vs_MIS = final_tissue_type_categoryRGP - final_tissue_type_categoryMIS,
+  VGP_vs_MIS = final_tissue_type_categoryVGP - final_tissue_type_categoryMIS,
+  VGP_vs_RGP = final_tissue_type_categoryVGP - final_tissue_type_categoryRGP,
+  Intermed_vs_Nevus = final_tissue_type_categoryIntermediate,
+  RGP_vs_Intermed = final_tissue_type_categoryRGP - final_tissue_type_categoryIntermediate,
+  VGP_vs_Intermed = final_tissue_type_categoryVGP - final_tissue_type_categoryIntermediate,
+  MIS_vs_Intermed = final_tissue_type_categoryMIS - final_tissue_type_categoryIntermediate,
+  data=vobj$targets,
+  formula = form
+)
+
+vobj$targets$final_tissue_type_category
+
+# Visualize contrast matrix
+plotContrasts(contrast_matrix)
+
+# Visualize contrast matrix
+plotContrasts(contrast_matrix)
+
+fit_contrast <- dream(vobj$E, 
+                      formula=form, 
+                      data=vobj$targets,
+                      BPPARAM = bp,
+                      contrast_matrix)
+
+fit <- variancePartition::eBayes(fit_contrast, trend = F)
+
+save(fit, vobj, dge,
+     file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+register(SerialParam())
+
+```
+
+
+Analysis of results 
+
+```{r}
+
+# Run this chunk before knitting
+
+require(tableone)
+require(tidyverse)
+library(variancePartition)
+
+load(file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+vobj$targets
+
+dge$genes -> Annot
+
+head(Annot)
+
+fit$coefficients %>% colnames()
+
+COEFS <- c('MIS_vs_Nevus',
+           'RGP_vs_Nevus',
+           'VGP_vs_Nevus',
+           'RGP_vs_MIS',
+           'VGP_vs_MIS',
+           'VGP_vs_RGP',
+           'Intermed_vs_Nevus',
+           'RGP_vs_Intermed',
+           'VGP_vs_Intermed',
+           'MIS_vs_Intermed')
+
+L <- 'RGP_vs_MIS'
+
+lapply(COEFS, function(L){
+
+# Compare Mel vs Nevus Low
+topTable(fit, 
+         coef = L, 
+         adjust.method = "fdr",
+         p.value = 1,
+         number = Inf) %>% 
+  mutate(DIRECTION=sign(logFC),
+         SIG=case_when(logFC > 1 & adj.P.Val <= 0.05 ~ 'Up',
+                       logFC < -1 &  adj.P.Val <= 0.05 ~ 'Down',
+                       TRUE ~ 'NS')) %>%
+  rownames_to_column('GeneID') %>% 
+  mutate(contrast=L) -> temp
+  
+  return(temp)
+  
+}) -> contr_list
+
+contr_list %>%
+  purrr::reduce(full_join) %>%
+  left_join(Annot) %>%
+  mutate(contrast=factor(contrast, 
+                         levels=c('MIS_vs_Nevus',
+                                  'RGP_vs_Nevus',
+                                  'VGP_vs_Nevus', 
+                                  'VGP_vs_MIS',
+                                  'RGP_vs_MIS',
+                                  'VGP_vs_RGP',
+                                  'Intermed_vs_Nevus',
+                                  'RGP_vs_Intermed',
+                                  'VGP_vs_Intermed',
+                                  'MIS_vs_Intermed'))) -> db_contrasts
+
+vobj$targets$david_kuo_outlier %>% table()
+
+db_contrasts %>%
+  group_by(SIG, contrast) %>%
+  summarise(COUNT=n()) %>% 
+  pivot_wider(id_cols = contrast,
+              names_from = SIG,
+              values_from = COUNT) -> N_DEGs
+
+N_DEGs %>% as.data.frame()
+
+## Lets get Top5 for each comparison
+
+db_contrasts %>%
+  filter(SIG == 'Up') %>%
+  arrange(desc(logFC)) %>%
+  group_by(contrast) %>%
+  slice_head(n = 5) %>%
+  mutate(Top5=Symbol) %>%
+  select(SIG, contrast, Symbol, Top5) -> Top5_DEGs_Up
+
+db_contrasts %>%
+  filter(SIG == 'Down') %>%
+  arrange(logFC) %>%
+  group_by(contrast) %>%
+  slice_head(n = 5) %>% 
+  mutate(Top5=Symbol) %>%
+  select(SIG, contrast, Symbol, Top5) -> Top5_DEGs_Down
+
+db_contrasts %>% 
+  full_join(bind_rows(Top5_DEGs_Up, Top5_DEGs_Down)) -> db_contrasts
+
+save(fit, vobj, db_contrasts, N_DEGs,
+     file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+```
+
+```{r}
+
+# Run this chunk before knitting
+
+load('tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+# For Mac
+library(BiocParallel)
+#bp <- MulticoreParam(8) 
+bp <- SnowParam(20) 
+
+varPart <- fitExtractVarPartModel(vobj, 
+                                  formula =  ~ (1 | patient_id) + (1 | sex) + 
+                                    (1 | final_tissue_type_category),
+                                  vobj$targets,
+                                  BPPARAM = bp)
+
+save(fit, vobj, db_contrasts, N_DEGs, varPart,
+     file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+register(SerialParam())
+
+```
+
+```{r}
+
+# Run this chunk before knitting
+
+library(fgsea)
+library(msigdbr)
+library(tidyverse)
+
+load('tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+hallmark_sets <- msigdbr(species = "Homo sapiens", collection = "H")
+
+colnames(hallmark_sets)
+
+head(hallmark_sets)  
+
+hallmark_sets$gs_name %>% unique()
+
+hallmark_sets %>% str()
+
+hallmark_sets %>% 
+  filter(gs_name == 'HALLMARK_MYOGENESIS')
+
+# Create a list where each element is a vector of genes for a pathway
+hallmark_list <- split(hallmark_sets$gene_symbol, hallmark_sets$gs_name)
+
+L = 'Mel_vs_Nevus'
+
+# choose your cores
+bp <- SnowParam(workers = 20, type = "SOCK", progressbar = TRUE)
+register(bp)
+
+lapply(unique(db_contrasts$contrast), function(L){
+
+db_contrasts %>% 
+  filter(contrast == L,
+         complete.cases(Symbol)) -> dream_results
+
+# Example: using t-statistic
+ranks <- dream_results %>%
+  dplyr::filter(!is.na(t)) %>%
+  dplyr::arrange(desc(t)) %>%
+  dplyr::select(Symbol, t)
+
+# Create a named vector for fgsea
+ranked_genes <- setNames(ranks$t, ranks$Symbol)
+
+fgsea_res <- fgsea(pathways = hallmark_list,
+                   stats = ranked_genes,
+                   minSize = 15,
+                   maxSize = 500,
+                   nproc = 8,
+                   BPPARAM  = bp)
+
+# Top pathways
+fgsea_res <- fgsea_res[order(fgsea_res$pval), ]
+
+fgsea_res$contrast <- L
+
+return(fgsea_res)
+
+}) %>% 
+  bind_rows() -> fgsea_res_HK
+
+write.csv(fgsea_res_HK %>% 
+            select(-leadingEdge), 
+          file="tissue_type_degs_cononical_kc_adjust/results/fgsea_hallmark_results.csv", 
+          row.names = FALSE)
+
+save(fit, vobj, db_contrasts, N_DEGs, varPart, fgsea_res_HK,
+    file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+register(SerialParam())
+
+```
+
+
+```{r}
+
+# Run this chunk before knitting
+
+load(file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+reactome_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = "C2") %>%
+  filter(str_detect(gs_name, 'REACTOME')) %>%
+  dplyr::select(gs_name, gene_symbol)
+
+# Create a list where each element is a vector of genes for a pathway
+reactome_list <- split(reactome_sets$gene_symbol, reactome_sets$gs_name)
+
+L <- "Mel_vs_Nevus"
+
+# choose your cores
+bp <- SnowParam(workers = 20, type = "SOCK", progressbar = TRUE)
+register(bp)
+
+lapply(unique(db_contrasts$contrast), function(L){
+  
+  db_contrasts %>% 
+    filter(contrast == L,
+           complete.cases(Symbol)) -> dream_results
+  
+  # Example: using t-statistic
+  ranks <- dream_results %>%
+    dplyr::filter(!is.na(t)) %>%
+    dplyr::arrange(desc(t)) %>%
+    dplyr::select(Symbol, t)
+  
+  # Create a named vector for fgsea
+  ranked_genes <- setNames(ranks$t, ranks$Symbol)
+  
+  fgsea_res <- fgsea(pathways = reactome_list,
+                     stats = ranked_genes,
+                     minSize = 15,
+                     maxSize = 500,
+                     nproc = 8,
+                     BPPARAM  = bp)
+  
+  # Top pathways
+  fgsea_res <- fgsea_res[order(fgsea_res$pval), ]
+  
+  fgsea_res$contrast <- L
+  
+  return(fgsea_res)
+  
+}) %>% 
+  bind_rows() -> fgsea_res_REACTOME
+
+register(SerialParam())
+
+save(fit, vobj, db_contrasts, N_DEGs, varPart, fgsea_res_HK, fgsea_res_REACTOME,
+     file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+write.csv(fgsea_res_REACTOME %>% 
+            select(-leadingEdge), 
+          file="tissue_type_degs_cononical_kc_adjust/results/fgsea_reactome_results.csv", 
+          row.names = FALSE)
+
+```
+
+
+## The custom KC signature
+
+```{r eval=T, echo=T}
+
+keratinocyte_gene_list <- c('KRT1', 'KRT2', 'KRT5', 'KRT10', 
+                            'KRT14', 'IVL', 'FLG', 'LOR', 'TGM3', 
+                            'SPRR2A', 'DSG1', 'DSC1', 'PI3', 'DMKN')
+
+
+keratinocyte_gene_list
+
+```
+
+## Variance Partition
+
+```{r eval=T, fig.width=6, fig.height=4}
+
+load('tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+plotVarPart(varPart[,c("sex", "final_tissue_type_category", "patient_id", "Residuals" )])
+
+```
+
+## Volcano plots, Custom KC adjustment
+
+model = ~ final_tissue_type_category + sex + age_centered_impute + gsva_canonical_kc + (1 | patient_id)
+
+```{r eval=T, fig.width=12, fig.height=8.5}
+
+load('tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+N_DEGs %>% as.data.frame()
+
+db_contrasts %>%
+  filter(contrast != 'DeltaVGP_MIS_VS_DeltaVGP_RGP') %>%
+  ggplot(aes(x=logFC,
+             y=-log10(adj.P.Val),
+             color=SIG,
+             alpha=SIG))+
+  geom_point(size=0.2)+
+  ggrepel::geom_text_repel(aes(label=Top5), max.overlaps=20, show.legend = F, color='black')+
+  scale_alpha_manual(values=c(Up=1, Down=1, NS=0.1))+
+  scale_color_manual(values=c(Up='red', Down='blue', NS='gray'))+
+  geom_hline(yintercept=-log10(0.05), linetype='dotted')+
+  geom_vline(xintercept=c(-1, 1), linetype='dotted')+
+  facet_wrap(~contrast, nrow=3, scales='free_y')+
+  labs(title=paste0('custom KC adjustment, FCH>2, FDR<0.05'))+
+  theme_bw() +
+  theme(legend.position = 'none') -> p1
+
+p1
+
+
+```
+
+## Heatmap, Custom KC adjustment
+
+FCH > 2, FDR < 0.05
+
+model = final_tissue_type_category + sex + age_centered_impute + ssGSEA_KC + (1 | patient_id)
+
+```{r eval=T, fig.width=13, fig.height=15}
+
+load('tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+require(pheatmap)
+
+db_contrasts %>%
+  filter(SIG !='NS',
+         complete.cases(Symbol)) %>% 
+  .$GeneID %>% unique() -> AllDEGs
+
+vobj$targets -> PHENO
+
+PHENO %>% 
+  arrange(final_tissue_type_category, prog_type, patient_id) -> PHENO
+
+require(RColorBrewer)
+
+BREAKS <- seq(-2, 2, by=0.1)
+
+pheatmap(vobj$E[AllDEGs, rownames(PHENO)],
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = F, 
+         show_colnames = F,
+         annotation_col=PHENO %>% select(final_tissue_type_category, 
+                                         prog_type),
+         cluster_cols = F,
+         main='DEGs FCH > 2, FDR < 0.05, custom KC adjustment',
+         gaps_col = which(!duplicated(PHENO$final_tissue_type_category))[-1]-1,
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                               Intermediate='yellow',
+                                                               MIS='orange',
+                                                               RGP='red',
+                                                               VGP='purple'),
+                                  prog_type=c(no_MIS='darkgoldenrod1',
+                                              with_MIS='mistyrose1')),
+         scale = 'row')
+
+```
+
+## Heatmap, Custom KC adjustment
+
+With clustered columns
+
+FCH > 2, FDR < 0.05
+
+model1 = final_tissue_type_category + sex + age_centered_impute + ssGSEA_KC + (1 | patient_id)
+
+```{r eval=T, fig.width=13, fig.height=15}
+
+pheatmap(vobj$E[AllDEGs, rownames(PHENO)],
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = F, 
+         show_colnames = F,
+         annotation_col=PHENO %>% select(final_tissue_type_category, 
+                                         prog_type),
+         cluster_cols = T,
+         main='DEGs FCH > 2, FDR < 0.05, Custom KC adjustment',
+         gaps_col = which(!duplicated(PHENO$final_tissue_type_category))[-1]-1,
+         annotation_colors = list(final_tissue_type_category=c(Nevus='green',
+                                                               Intermediate='yellow',
+                                                               MIS='orange',
+                                                               RGP='red',
+                                                               VGP='purple'),
+                                  prog_type=c(no_MIS='darkgoldenrod1',
+                                              with_MIS='mistyrose1')),
+         scale = 'row')
+
+
+```
+
+## Venn diagrams
+
+### vs Nevus Up
+
+```{r eval=T, fig.width=6, fig.height=6, fig.show='hold'}
+
+load('tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+db_contrasts %>%
+  filter(SIG == 'Up') %>%
+  arrange(desc(logFC)) %>%
+  group_by(contrast) %>%
+  slice_head(n = 5) %>%
+  mutate(Top5=Symbol) %>%
+  select(SIG, contrast, Symbol, Top5) -> Top5_DEGs_Up
+
+db_contrasts %>%
+  filter(SIG == 'Up',
+         !is.na(Symbol)) -> UP
+
+db_contrasts %>%
+  filter(SIG == 'Down',
+         !is.na(Symbol)) -> DOWN
+
+library(VennDiagram)
+library(grid)
+
+# Create Venn diagram object (do not save to file)
+venn_obj <- venn.diagram(
+  x = list(
+    Up_VGPvsNev = UP$GeneID[UP$contrast == 'VGP_vs_Nevus'],
+    Up_MISvsNev = UP$GeneID[UP$contrast == 'MIS_vs_Nevus'],
+    Up_RGPvsNev = UP$GeneID[UP$contrast == 'RGP_vs_Nevus']
+  ),
+  filename = NULL,  # Don't write to file
+  fill = c(Up_MISvsNev = 'orange', Up_RGPvsNev = 'red', Up_VGPvsNev = 'purple'),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.2,
+  cat.pos = 0
+)
+
+# Draw the Venn diagram to the RMarkdown output
+grid.newpage()
+grid.draw(venn_obj)
+
+```
+
+### vs Nevus Down
+
+```{r eval=T, fig.width=6, fig.height=6, fig.show='hold'}
+
+
+venn.plot <- venn.diagram(
+  x = list(Down_VGPvsNev = DOWN$GeneID[DOWN$contrast == 'VGP_vs_Nevus'],
+           Down_MISvsNev = DOWN$GeneID[DOWN$contrast == 'MIS_vs_Nevus'],
+           Down_RGPvsNev = UP$GeneID[UP$contrast == 'RGP_vs_Nevus']),
+  filename = NULL,
+  fill = c(Down_MISvsNev='orange', Down_RGPvsNev='red', Down_VGPvsNev='purple'),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.2,
+  cat.pos = 0
+)
+
+# Draw the Venn diagram to the RMarkdown output
+grid.newpage()
+grid.draw(venn.plot )
+
+
+```
+
+
+## GSEA analysis
+
+
+```{r eval=T, fig.width=10, fig.height=12}
+
+load(file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+fgsea_res_HK %>%
+  filter(padj <= 0.1) %>% 
+  .$pathway %>% 
+  unique() -> SIG_PATH
+
+fgsea_res_HK %>% 
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = NES,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'HALLMARK_')) %>%
+  column_to_rownames('pathway') -> mat
+
+fgsea_res_HK %>% 
+  rstatix::add_significance(p.col = 'padj',
+                            cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1),
+                            symbols = c("****", "***", "**", "*", "")) %>%
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = padj.signif,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'HALLMARK_')) %>%
+  column_to_rownames('pathway') -> STARS
+
+BREAKS <- seq(-3, 3, by=0.1)
+
+require(RColorBrewer)
+require(pheatmap)
+
+#dev.off()
+#pdf('results/model_1_melanoma/gsea_stuff/HallmarkHeatmap.pdf', width=8, height=12)
+pheatmap(mat,
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = STARS,
+         cluster_cols = T,
+         cellheight = 12,
+         cellwidth = 25,
+         main='Hallmark Enrichment, FDR < 0.1')
+#dev.off()
+
+```
+
+
+### Reactome Top 5 up and down (per contrast)
+
+
+```{r eval=T, fig.width=16, fig.height=13}
+
+load(file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+## Reactome Heatmap
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(NES) %>%
+  group_by(contrast) %>%
+  slice_head(n=5) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_DOWN
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(desc(NES)) %>%
+  group_by(contrast) %>%
+    slice_head(n=5) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_UP
+
+SIG_PATH <- unique(c(SIG_PATH_UP, SIG_PATH_DOWN))
+
+fgsea_res_REACTOME %>% 
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = NES,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> mat
+
+fgsea_res_REACTOME %>% 
+  rstatix::add_significance(p.col = 'padj',
+                            cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1),
+                            symbols = c("****", "***", "**", "*", "")) %>%
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = padj.signif,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> STARS
+
+BREAKS <- seq(-3, 3, by=0.1)
+
+require(RColorBrewer)
+
+#dev.off()
+#pdf('results/model_1_melanoma/gsea_stuff/ReactomeHeatmap.pdf', width=16, height=10)
+pheatmap(mat,
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = STARS,
+         cluster_cols = T,
+         cellheight = 12,
+         cellwidth = 25,
+         main='Reactome Enrichment')
+#dev.off()
+
+```
+
+
+### Reactome all
+
+
+```{r eval=T, fig.width=16, fig.height=140}
+
+load(file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+## Reactome Heatmap
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(NES) %>%
+  group_by(contrast) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_DOWN
+
+fgsea_res_REACTOME %>%
+  filter(padj <= 0.1) %>% 
+  arrange(desc(NES)) %>%
+  group_by(contrast) %>%
+  .$pathway %>% 
+  unique() -> SIG_PATH_UP
+
+SIG_PATH <- unique(c(SIG_PATH_UP, SIG_PATH_DOWN))
+
+fgsea_res_REACTOME %>% 
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = NES,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> mat
+
+fgsea_res_REACTOME %>% 
+  rstatix::add_significance(p.col = 'padj',
+                            cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1),
+                            symbols = c("****", "***", "**", "*", "")) %>%
+  filter(pathway %in% SIG_PATH) %>%
+  select(-leadingEdge) %>%
+  pivot_wider(id_cols = pathway,
+              values_from = padj.signif,
+              names_from = contrast) %>%
+  mutate(pathway=str_remove(pathway, 'REACTOME_')) %>%
+  column_to_rownames('pathway') -> STARS
+
+BREAKS <- seq(-3, 3, by=0.1)
+
+require(RColorBrewer)
+
+#dev.off()
+#pdf('results/model_1_melanoma/gsea_stuff/ReactomeHeatmap.pdf', width=16, height=10)
+pheatmap(mat,
+         breaks = BREAKS,
+         color = colorRampPalette(rev(brewer.pal(n = 8, name ="RdBu")))(length(BREAKS)),
+         show_rownames = T, 
+         show_colnames = T,
+         display_numbers = STARS,
+         cluster_cols = T,
+         cellheight = 12,
+         cellwidth = 25,
+         main='Reactome Enrichment')
+#dev.off()
+
+```
+
+
+```{r eval=T, fig.width=13, fig.height=8}
+
+
+load(file='tissue_type_degs_cononical_kc_adjust/results/vobj_fit_contrasts.rda')
+
+# Plot a specific enrichment
+#plotEnrichment(reactome_list[["REACTOME_NONSENSE_MEDIATED_DECAY_NMD"]], ranked_genes)
+
+#fgsea_res_all %>% 
+#  select(-leadingEdge) %>%
+#  filter(pathway=="REACTOME_NONSENSE_MEDIATED_DECAY_NMD") %>%
+#  arrange(NES)
+
+fgsea_res_REACTOME %>% 
+  filter(pathway=="REACTOME_NONSENSE_MEDIATED_DECAY_NMD") %>% .$leadingEdge -> Ledge
+
+Ledge %>%
+  reduce(unique) -> Ledge
+
+require(msigdbr)
+
+reactome_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = "C2") %>%
+  filter(str_detect(gs_name, 'REACTOME')) %>%
+  dplyr::select(gs_name, gene_symbol)
+
+# Create a list where each element is a vector of genes for a pathway
+reactome_list <- split(reactome_sets$gene_symbol, reactome_sets$gs_name)
+
+reactome_list$REACTOME_NONSENSE_MEDIATED_DECAY_NMD -> PTWY
+
+## Volcano plots
+
+db_contrasts %>%
+  filter(contrast != 'DeltaVGP_MIS_VS_DeltaVGP_RGP') %>%
+  #mutate(adj.P.Val=case_when(contrast == 'RGP_vs_MIS' & adj.P.Val < 0.5 ~ 1,
+  #                           TRUE ~ adj.P.Val)) %>%
+  mutate(LeadingEdge=case_when(Symbol %in% Ledge ~ 'LeadingEdge',
+                               Symbol %in% PTWY ~ 'Pathway',
+                               TRUE ~ 'No'),
+         Label=case_when(LeadingEdge == 'LeadingEdge' ~ Symbol,
+                               TRUE ~ NA_character_)) %>%
+  mutate(LeadingEdge = factor(LeadingEdge, levels = c("No", "Pathway", "LeadingEdge"))) %>%
+  arrange(LeadingEdge) %>% 
+  ggplot(aes(x=logFC,
+             y=-log10(adj.P.Val),
+             color=LeadingEdge))+
+  geom_point(aes(size=LeadingEdge))+
+  #ggrepel::geom_text_repel(aes(label=Label), max.overlaps=20, show.legend = F, color='black')+
+  #scale_alpha_manual(values=c(Up=1, Down=1, NS=0.1))+
+  scale_size_manual(values=c(LeadingEdge=1, Pathway=1, No=0.2))+
+  scale_color_manual(values=c(LeadingEdge='forestgreen', Pathway='blue', No='gray'))+
+  #geom_hline(yintercept=-log10(0.05), linetype='dotted')+
+  geom_vline(xintercept=c(-1, 1), linetype='dotted')+
+  facet_wrap(~contrast, scales='free')+
+  labs(title=paste0('NMD genes highlighted'))+
+  theme_bw() 
+
+
+```
+
+
+## PCA plots following various adjustments
+
+The two chunks below are for the PCA plots following various adjustments
+
+form1: adjust for sex, age_centered_impute, patient_id and mean-variance trend
+form2: adjust for sex, age_centered_impute, patient_id, gsva_canonical_kc and mean-variance trend
+
+
+NOTE: The chunk below needs to be ran before knitting [it is slow!!!]
+
+```{r preknit_pca}
+
+require(tidyverse)
+library(variancePartition)
+library(lme4)
+
+load('data/processed/DGE_final_samples.rda')
+
+dge <- dge_final
+
+dge <- calcNormFactors(dge)
+
+design <- model.matrix(~ final_tissue_type_category + sex + age_centered_impute, 
+                       data = dge$samples)
+
+keep <- filterByExpr(dge, 
+                     design = design, 
+                     min.count = 25,
+                     min.prob = 1)
+
+table(keep)
+
+dge <- dge[keep, , keep.lib.sizes = FALSE]
+
+table(keep)
+
+dge <- calcNormFactors(dge)
+
+load('data/processed/db_gsva_custom_correct.rda')
+
+db_gsva_custom_correct <- as.data.frame(db_gsva_custom_correct)
+
+dge$samples
+
+dge$samples <- bind_cols(dge$samples, 
+                         db_gsva_custom_correct[rownames(dge$samples),'gsva_canonical_kc', drop=F])
+
+library(BiocParallel)
+#bp <- MulticoreParam(20) # mac, linux 
+bp <- SnowParam(20) # PC
+
+
+form_list <- list(form1 = ~ sex + age_centered_impute + (1|patient_id),
+                  
+                  form2 = ~ sex + age_centered_impute + gsva_canonical_kc + (1|patient_id))
+
+
+lapply(names(form_list), function(L){
+  
+  print(L)
+  
+  reduced_form = form_list[[L]]
+  
+  vobj <- voomWithDreamWeights(dge, 
+                               formula=reduced_form, 
+                               data = dge$samples,
+                               plot = F,
+                               save.plot = F,
+                               BPPARAM = bp)
+  
+  fit_reduced = dream(vobj$E, 
+                      formula = reduced_form,
+                      data = vobj$targets,
+                      BPPARAM = bp)
+  
+  return(fit_reduced)}) -> fit_reduced_list
+
+names(fit_reduced_list) <- names(form_list) 
+
+save(fit_reduced_list, form_list, 
+     file='tissue_type_degs_cononical_kc_adjust/results/pca_stuff/fit_reduced_list_for_pca.rda')
+
+register(SerialParam())
+
+```
+
+```{r echo=T}
+
+load('tissue_type_degs_cononical_kc_adjust/results/pca_stuff/fit_reduced_list_for_pca.rda')
+
+form_list <- list(form1 = ~ sex + age_centered_impute + (1|patient_id),
+                  
+                  form2 = ~ sex + age_centered_impute + gsva_canonical_kc + (1|patient_id))
+
+
+```
+
+```{r eval=T, fig.width=8, fig.height=5}
+
+load('tissue_type_degs_cononical_kc_adjust/results/pca_stuff/fit_reduced_list_for_pca.rda')
+load('data/processed/DGE_final_samples.rda')
+
+load('data/processed/db_gsva_custom_correct.rda')
+
+db_gsva_custom_correct <- as.data.frame(db_gsva_custom_correct)
+
+dge_final$samples <- bind_cols(dge_final$samples, 
+                               db_gsva_custom_correct[rownames(dge_final$samples),'gsva_canonical_kc', drop=F])
+
+L <- 'form1'
+
+lapply(names(form_list) , function(L){
+  
+  #print(L)
+  
+  residuals_mat <- fit_reduced_list[[L]]$residuals
+  
+  pca_result <- prcomp(t(residuals_mat), scale. = TRUE)
+  
+  # Variance for each PC
+  var_explained <- pca_result$sdev^2
+  
+  # Proportion of total variance
+  prop_var_explained <- var_explained / sum(var_explained)
+  
+  # Convert to %
+  percent_var <- round(100 * prop_var_explained, 2)
+  
+  # Optional: label for plotting
+  pc_labels <- paste0("PC", 1:length(percent_var), " (", percent_var, "%)")
+  
+  pca_result$x %>% 
+    bind_cols(dge_final$samples) %>%
+    ggplot(aes(x=PC1, y=PC2,
+               color=final_tissue_type_category))+
+    #stat_ellipse()+
+    #scale_size_manual(values=c(`OK`=1, `dk_outlier`=3)) +
+    geom_point(size=2)+
+    xlab(pc_labels[1]) +
+    ylab(pc_labels[2]) +
+    theme_minimal()+
+    labs(title=paste0('PCA, ', L, ' ', paste0(as.character(form_list[[L]]), collapse = ' ')))
+  
+})
+
+
+
+```
+
+
+```{r eval=T, fig.width=8, fig.height=5}
+
+load('tissue_type_degs_cononical_kc_adjust/results/pca_stuff/fit_reduced_list_for_pca.rda')
+load('data/processed/DGE_final_samples.rda')
+
+load('data/processed/db_gsva_custom_correct.rda')
+
+db_gsva_custom_correct <- as.data.frame(db_gsva_custom_correct)
+
+dge_final$samples <- bind_cols(dge_final$samples, 
+                               db_gsva_custom_correct[rownames(dge_final$samples),'gsva_canonical_kc', drop=F])
+
+L <- 'form1'
+
+lapply(names(form_list) , function(L){
+  
+  #print(L)
+  
+  residuals_mat <- fit_reduced_list[[L]]$residuals
+  
+  pca_result <- prcomp(t(residuals_mat), scale. = TRUE)
+  
+  # Variance for each PC
+  var_explained <- pca_result$sdev^2
+  
+  # Proportion of total variance
+  prop_var_explained <- var_explained / sum(var_explained)
+  
+  # Convert to %
+  percent_var <- round(100 * prop_var_explained, 2)
+  
+  # Optional: label for plotting
+  pc_labels <- paste0("PC", 1:length(percent_var), " (", percent_var, "%)")
+  
+  pca_result$x %>% 
+    bind_cols(dge_final$samples) %>%
+    #mutate(gsva_canonical_kc_scaled = as.numeric(scale(gsva_canonical_kc, center = TRUE, scale = TRUE))) %>%
+    ggplot(aes(x=PC1, y=PC2,
+               color=gsva_canonical_kc))+
+    #stat_ellipse(aes(group=final_tissue_type_category))+
+    #scale_color_gradient2(low = 'blue', mid = 'white', high='red', midpoint = 0) +
+    scale_color_viridis_c() +
+    geom_point(size=1)+
+    xlab(pc_labels[1]) +
+    ylab(pc_labels[2]) +
+    theme_minimal()+
+    labs(title=paste0('PCA, ', L))
+  
+  
+})
+
+
+
+```
+
+
+```{r}
+
+## additional PCA plots if needed
+
+pca_result$x %>% 
+  bind_cols(vobj$targets) %>%
+  ggplot(aes(x=PC1, y=PC2,
+             color=patient_id))+
+  #stat_ellipse()+
+  #scale_size_manual(values=c(`OK`=1, `dk_outlier`=3)) +
+  geom_point(size=1)+
+  xlab(pc_labels[1]) +
+  ylab(pc_labels[2]) +
+  theme_minimal()+
+  labs(title=paste0('PCA, ', L))
+
+
+
+
+
+```
+
+```{r eval=TRUE}
+
+load('data/processed/DGE_final_samples.rda')
+
+CreateTableOne(vars=c('age', 'sex', 'prog_type', 
+                      'csd', 'solar_elastosis_score', 'age_centered', 'age_centered_impute'),
+               data=dge_final$samples %>%
+                 filter(!duplicated(patient_id)),
+                addOverall = TRUE)
+
+CreateTableOne(vars=c('final_tissue_type_category'),
+               data=dge_final$samples,
+                addOverall = TRUE)
+
+load('tissue_type_degs_cononical_kc_adjust/results/pca_stuff/fit_reduced_list_for_pca.rda')
+
+CreateTableOne(vars=c('age', 'sex', 'prog_type', 
+                      'csd', 'solar_elastosis_score', 'age_centered', 'age_centered_impute'),
+               data=vobj$targets %>%
+                 filter(!duplicated(patient_id)),
+                addOverall = TRUE)
+
+CreateTableOne(vars=c('final_tissue_type_category'),
+               data=vobj$targets,
+                addOverall = TRUE)
+
+```
+
+
